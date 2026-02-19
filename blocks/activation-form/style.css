@@ -1,0 +1,10 @@
+/**
+ * hm-user-activation/form — frontend styles.
+ * Intentionally minimal; relies on the theme for typography/colour.
+ */
+
+.hm-activation-form__field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.375em;
+}

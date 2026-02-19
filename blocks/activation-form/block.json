@@ -1,0 +1,28 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "hm-user-activation/form",
+	"version": "1.2.0",
+	"title": "Activation Form",
+	"category": "common",
+	"icon": "admin-users",
+	"description": "Displays the account activation form. Shows a key input (or hidden field when the key is in the URL), an auto-login checkbox, and a submit button.",
+	"keywords": [ "activation", "signup", "user", "form", "register" ],
+	"supports": {
+		"html": false,
+		"reusable": false,
+		"inserter": true,
+		"color": {
+			"background": true,
+			"text": true
+		},
+		"spacing": {
+			"padding": true,
+			"margin": true
+		}
+	},
+	"textdomain": "hm-user-activation",
+	"editorScript": "file:./index.js",
+	"style": "file:./style.css",
+	"render": "file:./render.php"
+}
