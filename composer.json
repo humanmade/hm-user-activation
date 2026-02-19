@@ -1,0 +1,20 @@
+{
+    "name": "humanmade/hm-user-activation",
+    "description": "User activation flow handler for the frontend, keeping user activation within a site even on a network.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Human Made Limited",
+            "email": "engineering@humanmade.com"
+        }
+    ],
+    "require": {
+        "composer/installers": "^1 || ^2"
+    },
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true
+        }
+    }
+}
