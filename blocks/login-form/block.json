@@ -1,0 +1,37 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "hm-user-activation/login-form",
+	"version": "1.0.0",
+	"title": "Login Form",
+	"category": "common",
+	"icon": "admin-users",
+	"description": "Renders the WordPress login form. The 'Forgot your password?' link automatically points to the configured password reset page.",
+	"keywords": [ "login", "sign in", "form", "password" ],
+	"supports": {
+		"html": false,
+		"reusable": false,
+		"inserter": true,
+		"color": {
+			"background": true,
+			"text": true
+		},
+		"spacing": {
+			"padding": true,
+			"margin": true
+		}
+	},
+	"attributes": {
+		"rememberMe": {
+			"type": "boolean",
+			"default": true
+		},
+		"redirect": {
+			"type": "string",
+			"default": ""
+		}
+	},
+	"textdomain": "hm-user-activation",
+	"editorScript": "file:./index.js",
+	"render": "file:./render.php"
+}

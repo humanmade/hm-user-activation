@@ -16,7 +16,7 @@ if ( isset( $_GET['key'] ) ) {
 }
 
 // Don't show the form after a successful activation.
-if ( Activation::is_success() ) {
+if ( Activation\is_success() ) {
 	return;
 }
 

@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: HM User Activation
- * Description: Handles user account activations within a multisite network site, replacing wp-activate.php behaviour. Provides customisable activation emails, an editable activation page with blocks, optional auto-login, and a post-activation welcome email.
+ * Description: Handles user account activations within a multisite network site, replacing wp-activate.php behaviour. Provides customisable activation emails, an editable activation page with blocks, optional auto-login, a post-activation welcome email, and a full password reset flow.
  * Version: 1.0.0
  * Author: Human Made
  * Author URI: https://humanmade.com
@@ -27,19 +27,21 @@ if ( ! is_multisite() ) {
 	return;
 }
 
-require_once HM_USER_ACTIVATION_DIR . 'includes/class-activation.php';
-require_once HM_USER_ACTIVATION_DIR . 'includes/class-emails.php';
-require_once HM_USER_ACTIVATION_DIR . 'includes/class-admin-settings.php';
-require_once HM_USER_ACTIVATION_DIR . 'includes/class-page-setup.php';
-require_once HM_USER_ACTIVATION_DIR . 'includes/class-block-bindings.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/activation.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/emails.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/password-reset.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/admin-settings.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/page-setup.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/block-bindings.php';
 
 register_activation_hook( __FILE__, __NAMESPACE__ . '\\on_plugin_activation' );
 
 /**
- * Plugin activation: create the draft activation page.
+ * Plugin activation: create the draft activation and password reset pages.
  */
 function on_plugin_activation(): void {
-	Page_Setup::create_activation_page();
+	PageSetup\create_activation_page();
+	PageSetup\create_password_reset_page();
 }
 
 /**
@@ -53,16 +55,19 @@ function multisite_required_notice(): void {
 }
 
 // Bootstrap.
-Activation::init();
-Emails::init();
-Admin_Settings::init();
-Block_Bindings::init();
+Activation\bootstrap();
+Emails\bootstrap();
+PasswordReset\bootstrap();
+Admin\bootstrap();
+BlockBindings\bootstrap();
 
 // Register blocks and editor assets.
 add_action( 'init', __NAMESPACE__ . '\\register_blocks' );
 
 function register_blocks(): void {
 	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/activation-form' );
+	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/password-reset' );
+	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/login-form' );
 }
 
 add_action( 'enqueue_block_editor_assets', __NAMESPACE__ . '\\enqueue_editor_assets' );

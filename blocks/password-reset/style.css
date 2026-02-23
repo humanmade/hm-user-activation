@@ -1,0 +1,10 @@
+/**
+ * hm-user-activation/password-reset — frontend styles.
+ * Intentionally minimal; relies on the theme for typography/colour.
+ */
+
+.hm-password-reset__field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.375em;
+}
