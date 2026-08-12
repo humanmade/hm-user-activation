@@ -143,16 +143,6 @@ function process( string $key, bool $auto_login ): void {
 
 	$page_id = (int) get_option( 'hm_activation_page_id' );
 
-	// Activation keys are guessable given enough attempts, so cap them.
-	if ( Security\is_rate_limited( 'activate', 10, 5 * MINUTE_IN_SECONDS ) ) {
-		result( [
-			'success'       => false,
-			'error_code'    => 'rate_limited',
-			'error_message' => Security\rate_limit_message(),
-		] );
-		return;
-	}
-
 	$signup = get_signup_by_key( $key );
 	if ( $signup && ! (int) $signup->active && is_expired( $signup ) ) {
 		result( [

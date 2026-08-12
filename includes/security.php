@@ -12,8 +12,13 @@
  *    clean permalink, keeping the key out of browser history, Referer headers,
  *    proxy logs and copy-pasted links. This mirrors core's password reset flow.
  *  - Responses are never cached, publicly or privately, and are not indexed.
- *  - Submissions are rate limited per client so keys cannot be brute forced and
- *    the forms cannot be used to send mail in bulk.
+ *
+ * Rate limiting these endpoints is deliberately not done here. PHP only sees
+ * REMOTE_ADDR, which is the load balancer or CDN on most hosts unless the server
+ * has been configured to recover the real client address, and per-client
+ * counters in the options table or object cache grow with exactly the traffic
+ * they are meant to absorb. It belongs in nginx, Apache or the edge instead —
+ * see the rate limiting section of the README.
  */
 
 namespace HM\UserActivation\Security;
@@ -187,85 +192,6 @@ function cookie_path( int $page_id ): string {
 	$path      = $permalink ? wp_parse_url( $permalink, PHP_URL_PATH ) : '';
 
 	return $path ?: '/';
-}
-
-// -------------------------------------------------------------------------
-// Rate limiting
-// -------------------------------------------------------------------------
-
-/**
- * Count an attempt and report whether the client has exceeded the limit.
- *
- * The window slides on every attempt, including blocked ones, so hammering the
- * endpoint keeps the client locked out rather than letting it retry the moment
- * the first window lapses.
- *
- * @param string $action Identifier for the thing being limited.
- * @param int    $limit  Attempts permitted within the window.
- * @param int    $window Window length in seconds.
- * @return bool True when the client is over the limit and should be refused.
- */
-function is_rate_limited( string $action, int $limit, int $window ): bool {
-	/**
-	 * Filter the number of attempts permitted within the window.
-	 *
-	 * Return 0 or less to disable rate limiting for this action.
-	 *
-	 * @param int    $limit  Attempts permitted.
-	 * @param string $action Action identifier.
-	 */
-	$limit = (int) apply_filters( 'hm_user_activation_rate_limit', $limit, $action );
-
-	if ( $limit <= 0 ) {
-		return false;
-	}
-
-	/**
-	 * Filter the rate limit window in seconds.
-	 *
-	 * @param int    $window Window length.
-	 * @param string $action Action identifier.
-	 */
-	$window = (int) apply_filters( 'hm_user_activation_rate_limit_window', $window, $action );
-
-	$transient = 'hm_ua_rl_' . md5( $action . '|' . client_fingerprint() );
-	$attempts  = (int) get_transient( $transient ) + 1;
-
-	set_transient( $transient, $attempts, max( 60, $window ) );
-
-	return $attempts > $limit;
-}
-
-/**
- * An opaque, hashed identifier for the current client.
- *
- * REMOTE_ADDR only: forwarded-for headers are attacker controlled unless the
- * stack is known to rewrite them, and the value is hashed so raw addresses are
- * not written to the options table.
- */
-function client_fingerprint(): string {
-	$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '';
-
-	/**
-	 * Filter the client identifier used for rate limiting.
-	 *
-	 * Sites behind a trusted proxy can substitute the real client address here.
-	 *
-	 * @param string $ip Client address.
-	 */
-	$ip = (string) apply_filters( 'hm_user_activation_client_ip', $ip );
-
-	return wp_hash( $ip );
-}
-
-/**
- * The message shown whenever a client is rate limited.
- *
- * Deliberately identical for every action so it reveals nothing about whether
- * the submitted username, email or key was valid.
- */
-function rate_limit_message(): string {
-	return __( 'Too many attempts. Please wait a few minutes and try again.', 'hm-user-activation' );
 }
 
 // -------------------------------------------------------------------------

@@ -175,18 +175,6 @@ function process_reset_request( string $email_or_login ): void {
 		return;
 	}
 
-	// Cap requests per client: this endpoint sends mail to an address the caller
-	// supplies, so without a limit it can be used to flood an inbox.
-	if ( Security\is_rate_limited( 'reset_request', 5, 15 * MINUTE_IN_SECONDS ) ) {
-		result( [
-			'success'       => false,
-			'mode'          => 'request',
-			'error_code'    => 'rate_limited',
-			'error_message' => Security\rate_limit_message(),
-		] );
-		return;
-	}
-
 	$user = str_contains( $email_or_login, '@' )
 		? get_user_by( 'email', $email_or_login )
 		: get_user_by( 'login', $email_or_login );
