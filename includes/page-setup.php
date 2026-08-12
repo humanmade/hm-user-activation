@@ -28,6 +28,28 @@ function create_activation_page(): void {
 }
 
 /**
+ * Create the registration page as a draft (only once).
+ */
+function create_registration_page(): void {
+	$existing_id = (int) get_option( 'hm_activation_registration_page_id' );
+
+	if ( $existing_id && get_post( $existing_id ) ) {
+		return;
+	}
+
+	$page_id = wp_insert_post( [
+		'post_title'   => __( 'Create an Account', 'hm-user-activation' ),
+		'post_content' => default_registration_page_content(),
+		'post_status'  => 'draft',
+		'post_type'    => 'page',
+	] );
+
+	if ( $page_id && ! is_wp_error( $page_id ) ) {
+		update_option( 'hm_activation_registration_page_id', $page_id );
+	}
+}
+
+/**
  * Create the password reset page as a draft (only once).
  */
 function create_password_reset_page(): void {
@@ -83,6 +105,39 @@ function default_activation_page_content(): string {
 <div class="wp-block-button"><a class="wp-block-button__link wp-element-button">Set your password</a></div>
 <!-- /wp:button --></div>
 <!-- /wp:buttons --></div>
+<!-- /wp:group -->
+BLOCKS;
+}
+
+/**
+ * Default block content for the registration page.
+ *
+ * The registration block renders the username/email form, hiding itself once a
+ * signup has been created. The two group variants show feedback for each
+ * outcome and are hidden by default via PHP render_block filtering.
+ */
+function default_registration_page_content(): string {
+	return <<<'BLOCKS'
+<!-- wp:heading {"textAlign":"center","level":1} -->
+<h1 class="wp-block-heading has-text-align-center">Create an Account</h1>
+<!-- /wp:heading -->
+
+<!-- wp:hm-user-activation/registration-form /-->
+
+<!-- wp:group {"metadata":{"variationName":"hm-user-activation/registration-errors"},"className":"hm-registration-errors","style":{"border":{"radius":"4px"},"spacing":{"padding":{"top":"1rem","right":"1rem","bottom":"1rem","left":"1rem"}}}} -->
+<div class="wp-block-group hm-registration-errors"><!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"hm-user-activation/registration-error-message"}}}} -->
+<p></p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+
+<!-- wp:group {"metadata":{"variationName":"hm-user-activation/registration-success"},"className":"hm-registration-success","style":{"border":{"radius":"4px"},"spacing":{"padding":{"top":"1rem","right":"1rem","bottom":"1rem","left":"1rem"}}}} -->
+<div class="wp-block-group hm-registration-success"><!-- wp:paragraph -->
+<p>Thanks for registering!</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"hm-user-activation/registration-message"}}}} -->
+<p></p>
+<!-- /wp:paragraph --></div>
 <!-- /wp:group -->
 BLOCKS;
 }

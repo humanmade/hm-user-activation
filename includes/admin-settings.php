@@ -8,6 +8,7 @@
 namespace HM\UserActivation\Admin;
 
 use HM\UserActivation\Emails;
+use HM\UserActivation\Registration;
 
 const PAGE_SLUG    = 'hm-user-activation';
 const OPTION_GROUP = 'hm_user_activation';
@@ -34,6 +35,12 @@ function add_settings_page(): void {
 function register_settings(): void {
 	// --- General ---
 	register_setting( OPTION_GROUP, 'hm_activation_page_id', [
+		'type'              => 'integer',
+		'sanitize_callback' => 'absint',
+		'default'           => 0,
+	] );
+
+	register_setting( OPTION_GROUP, 'hm_activation_registration_page_id', [
 		'type'              => 'integer',
 		'sanitize_callback' => 'absint',
 		'default'           => 0,
@@ -101,6 +108,15 @@ function register_sections_and_fields(): void {
 		__( 'General', 'hm-user-activation' ),
 		null,
 		PAGE_SLUG
+	);
+
+	add_settings_field(
+		'hm_activation_registration_page_id',
+		__( 'Registration page', 'hm-user-activation' ),
+		__NAMESPACE__ . '\\field_registration_page_select',
+		PAGE_SLUG,
+		'hm_activation_general',
+		[ 'label_for' => 'hm_activation_registration_page_id' ]
 	);
 
 	add_settings_field(
@@ -339,6 +355,40 @@ function field_page_select( array $args ): void {
 			esc_html__( 'Edit page', 'hm-user-activation' ),
 			esc_url( get_permalink( $value ) ),
 			esc_html__( 'View page', 'hm-user-activation' )
+		);
+	}
+}
+
+function field_registration_page_select( array $args ): void {
+	$value = (int) get_option( 'hm_activation_registration_page_id' );
+
+	wp_dropdown_pages( [
+		'name'              => 'hm_activation_registration_page_id',
+		'id'                => 'hm_activation_registration_page_id',
+		'selected'          => $value,
+		'show_option_none'  => __( '— Select a page —', 'hm-user-activation' ),
+		'option_none_value' => '0',
+	] );
+
+	if ( $value ) {
+		printf(
+			' <a href="%s" target="_blank">%s</a> &middot; <a href="%s" target="_blank">%s</a>',
+			esc_url( get_edit_post_link( $value ) ),
+			esc_html__( 'Edit page', 'hm-user-activation' ),
+			esc_url( get_permalink( $value ) ),
+			esc_html__( 'View page', 'hm-user-activation' )
+		);
+	}
+
+	printf(
+		'<p class="description">%s</p>',
+		esc_html__( 'Page containing the registration block. Registration links across the site, and requests to the network signup page, are sent here.', 'hm-user-activation' )
+	);
+
+	if ( ! Registration\is_registration_enabled() ) {
+		printf(
+			'<p class="description"><strong>%s</strong></p>',
+			esc_html__( 'User registration is currently disabled for this network, so the form will not accept submissions. Enable it under Network Admin → Settings → Registration Settings.', 'hm-user-activation' )
 		);
 	}
 }

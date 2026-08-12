@@ -10,12 +10,16 @@
  *  hm-user-activation/username-message     → "Activation: Username (formatted)"
  *  hm-user-activation/reset-url            → "Activation: Password reset URL"
  *  hm-user-activation/reset-error-message  → "Password reset: Error message"
+ *  hm-user-activation/registration-error-message → "Registration: Error message"
+ *  hm-user-activation/registration-email   → "Registration: Email address"
+ *  hm-user-activation/registration-message → "Registration: Confirmation message"
  */
 
 namespace HM\UserActivation\BlockBindings;
 
 use HM\UserActivation\Activation;
 use HM\UserActivation\PasswordReset;
+use HM\UserActivation\Registration;
 
 function bootstrap(): void {
 	add_action( 'init', __NAMESPACE__ . '\\register_sources' );
@@ -46,6 +50,18 @@ function register_sources(): void {
 		'hm-user-activation/reset-error-message' => [
 			'label' => __( 'Password reset: Error message', 'hm-user-activation' ),
 			'key'   => 'reset_error_message',
+		],
+		'hm-user-activation/registration-error-message' => [
+			'label' => __( 'Registration: Error message', 'hm-user-activation' ),
+			'key'   => 'registration_error_message',
+		],
+		'hm-user-activation/registration-email' => [
+			'label' => __( 'Registration: Email address', 'hm-user-activation' ),
+			'key'   => 'registration_email',
+		],
+		'hm-user-activation/registration-message' => [
+			'label' => __( 'Registration: Confirmation message', 'hm-user-activation' ),
+			'key'   => 'registration_message',
 		],
 	];
 
@@ -86,6 +102,20 @@ function get_binding_value( string $key ): ?string {
 
 		case 'reset_error_message':
 			return PasswordReset\get_error_message() ?: null;
+
+		case 'registration_error_message':
+			return Registration\get_error_message() ?: null;
+
+		case 'registration_email':
+			return Registration\get_user_email() ?: null;
+
+		case 'registration_message':
+			$email = Registration\get_user_email();
+			if ( ! $email ) {
+				return null;
+			}
+			/* translators: %s: the email address the activation link was sent to */
+			return sprintf( __( 'We have sent an activation link to %s. Click the link in that email to finish setting up your account.', 'hm-user-activation' ), $email );
 
 		default:
 			return null;
