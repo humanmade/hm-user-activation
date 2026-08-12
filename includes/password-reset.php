@@ -12,6 +12,7 @@
 namespace HM\UserActivation\PasswordReset;
 
 use HM\UserActivation\Emails;
+use HM\UserActivation\Security;
 
 function bootstrap(): void {
 	add_action( 'template_redirect', __NAMESPACE__ . '\\maybe_process' );
@@ -25,12 +26,33 @@ function bootstrap(): void {
 
 /**
  * Handle form submissions on the password reset page.
+ *
+ * A key arriving as ?key=…&login=… is moved into a scoped, HTTP-only cookie and
+ * the page is reloaded without it, so the key never appears in browser history,
+ * Referer headers or access logs. The cookie is then the authority for the rest
+ * of the flow; the form's hidden field is only cross-checked against it. This is
+ * the same approach core takes for wp-login.php?action=rp.
  */
 function maybe_process(): void {
 	$page_id = (int) get_option( 'hm_activation_password_reset_page_id' );
 
 	if ( ! $page_id || ! is_page( $page_id ) ) {
 		return;
+	}
+
+	// Move a key out of the URL and reload.
+	if ( isset( $_GET['key'], $_GET['login'] ) ) {
+		$key   = sanitize_text_field( wp_unslash( $_GET['key'] ) );
+		$login = sanitize_text_field( wp_unslash( $_GET['login'] ) );
+
+		if ( $key && $login ) {
+			Security\set_key_cookie( Security\RESET_COOKIE, $login . ':' . $key, $page_id );
+
+			// Target is our own permalink rather than user input, so
+			// wp_safe_redirect()'s host allow-list is not needed here.
+			wp_redirect( get_permalink( $page_id ) ?: home_url( '/' ), 302 );
+			exit;
+		}
 	}
 
 	if ( ! empty( $_POST['_hm_reset_nonce'] ) ) {
@@ -44,12 +66,28 @@ function maybe_process(): void {
 			return;
 		}
 
-		$key   = sanitize_text_field( wp_unslash( $_POST['rp_key']   ?? '' ) );
-		$login = sanitize_text_field( wp_unslash( $_POST['rp_login'] ?? '' ) );
+		$pending = pending_credentials();
+
+		// The cookie is the source of truth. The posted key must match it, so a
+		// form from another session cannot be replayed against this browser.
+		if (
+			! $pending
+			|| ! hash_equals( $pending['key'], sanitize_text_field( wp_unslash( $_POST['rp_key'] ?? '' ) ) )
+		) {
+			Security\clear_key_cookie( Security\RESET_COOKIE, $page_id );
+			result( [
+				'success'       => false,
+				'mode'          => 'reset',
+				'error_code'    => 'invalid_key',
+				'error_message' => invalid_key_message(),
+			] );
+			return;
+		}
+
 		$pass1 = wp_unslash( $_POST['pass1'] ?? '' );
 		$pass2 = wp_unslash( $_POST['pass2'] ?? '' );
 
-		process_password_change( $key, $login, $pass1, $pass2 );
+		process_password_change( $pending['key'], $pending['login'], $pass1, $pass2 );
 		return;
 	}
 
@@ -66,7 +104,60 @@ function maybe_process(): void {
 
 		$user_login = sanitize_text_field( wp_unslash( $_POST['user_login'] ?? '' ) );
 		process_reset_request( $user_login );
+		return;
 	}
+
+	// Validate a stashed key up front so we don't render a form that cannot
+	// work, and so an expired link explains itself.
+	$pending = pending_credentials();
+
+	if ( $pending ) {
+		$user = check_password_reset_key( $pending['key'], $pending['login'] );
+
+		if ( is_wp_error( $user ) ) {
+			Security\clear_key_cookie( Security\RESET_COOKIE, $page_id );
+			result( [
+				'success'       => false,
+				'mode'          => 'reset',
+				'error_code'    => 'invalid_key',
+				'error_message' => invalid_key_message(),
+			] );
+		}
+	}
+}
+
+/**
+ * Credentials stashed from a reset link, or null when there are none.
+ *
+ * @return array{login: string, key: string}|null
+ */
+function pending_credentials(): ?array {
+	$cookie = Security\get_key_cookie( Security\RESET_COOKIE );
+
+	if ( ! $cookie || ! str_contains( $cookie, ':' ) ) {
+		return null;
+	}
+
+	[ $login, $key ] = explode( ':', $cookie, 2 );
+
+	if ( ! $login || ! $key ) {
+		return null;
+	}
+
+	return [
+		'login' => $login,
+		'key'   => $key,
+	];
+}
+
+/**
+ * A single message for every unusable key.
+ *
+ * Core distinguishes invalid from expired keys; collapsing them means a caller
+ * probing keys learns nothing about which part was wrong.
+ */
+function invalid_key_message(): string {
+	return __( 'This password reset link is no longer valid. Please request a new one.', 'hm-user-activation' );
 }
 
 /**
@@ -88,11 +179,44 @@ function process_reset_request( string $email_or_login ): void {
 		? get_user_by( 'email', $email_or_login )
 		: get_user_by( 'login', $email_or_login );
 
+	$errors = new \WP_Error();
+
+	/**
+	 * Fires before a reset link is sent, matching core's hook so existing
+	 * integrations — logging, captchas, extra validation — keep working. Errors
+	 * added here stop the request, as they do on wp-login.php.
+	 *
+	 * @param \WP_Error      $errors Error collector.
+	 * @param \WP_User|false $user   The user found for the submitted value.
+	 */
+	do_action( 'lostpassword_post', $errors, $user );
+
+	if ( $errors->has_errors() ) {
+		result( [
+			'success'       => false,
+			'mode'          => 'request',
+			'error_code'    => $errors->get_error_code(),
+			'error_message' => implode( ' ', $errors->get_error_messages() ),
+		] );
+		return;
+	}
+
 	// Always show success to avoid revealing whether the account exists.
 	if ( $user ) {
-		$key = get_password_reset_key( $user );
-		if ( ! is_wp_error( $key ) ) {
-			Emails\send_password_reset_email( $user, $key );
+		/**
+		 * Core's filter for policies that forbid resets for certain accounts,
+		 * honoured here so those users cannot be reset through this page either.
+		 *
+		 * @param bool $allow   Whether to allow the password to be reset.
+		 * @param int  $user_id The user ID.
+		 */
+		$allow = apply_filters( 'allow_password_reset', true, $user->ID );
+
+		if ( $allow && ! is_wp_error( $allow ) ) {
+			$key = get_password_reset_key( $user );
+			if ( ! is_wp_error( $key ) ) {
+				Emails\send_password_reset_email( $user, $key );
+			}
 		}
 	}
 
@@ -126,16 +250,44 @@ function process_password_change( string $key, string $login, string $pass1, str
 	$user = check_password_reset_key( $key, $login );
 
 	if ( is_wp_error( $user ) ) {
+		Security\clear_key_cookie( Security\RESET_COOKIE, (int) get_option( 'hm_activation_password_reset_page_id' ) );
 		result( [
 			'success'       => false,
 			'mode'          => 'reset',
-			'error_code'    => $user->get_error_code(),
-			'error_message' => $user->get_error_message(),
+			'error_code'    => 'invalid_key',
+			'error_message' => invalid_key_message(),
 		] );
 		return;
 	}
 
+	// Give password policy plugins their say, as wp-login.php does.
+	$errors = new \WP_Error();
+
+	/**
+	 * Fires before the new password is stored.
+	 *
+	 * @param \WP_Error         $errors Error collector.
+	 * @param \WP_User|\WP_Error $user   The user resetting their password.
+	 */
+	do_action( 'validate_password_reset', $errors, $user );
+
+	if ( $errors->has_errors() ) {
+		result( [
+			'success'       => false,
+			'mode'          => 'reset',
+			'error_code'    => $errors->get_error_code(),
+			'error_message' => implode( ' ', $errors->get_error_messages() ),
+		] );
+		return;
+	}
+
+	// reset_password() clears the reset key and destroys the user's existing
+	// sessions, so a stolen cookie cannot outlive the password change.
 	reset_password( $user, $pass1 );
+
+	// The key is spent — remove it so the form cannot be resubmitted.
+	Security\clear_key_cookie( Security\RESET_COOKIE, (int) get_option( 'hm_activation_password_reset_page_id' ) );
+
 	result( [ 'success' => true, 'mode' => 'reset' ] );
 }
 

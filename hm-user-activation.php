@@ -27,6 +27,7 @@ if ( ! is_multisite() ) {
 	return;
 }
 
+require_once HM_USER_ACTIVATION_DIR . 'includes/security.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/registration.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/activation.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/emails.php';
@@ -57,6 +58,7 @@ function multisite_required_notice(): void {
 }
 
 // Bootstrap.
+Security\bootstrap();
 Registration\bootstrap();
 Activation\bootstrap();
 Emails\bootstrap();

@@ -55,7 +55,10 @@ function maybe_redirect_wp_signup(): void {
 		return;
 	}
 
-	wp_safe_redirect( $url, 302 );
+	// Target is our own permalink rather than user input. wp_safe_redirect()
+	// would reject the other host on a subdomain network and send the visitor to
+	// wp-admin instead, so the plain redirect is the correct one here.
+	wp_redirect( $url, 302 );
 	exit;
 }
 

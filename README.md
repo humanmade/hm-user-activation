@@ -57,6 +57,101 @@ Replaces WordPress Multisite's default `wp-signup.php` and `wp-activate.php` flo
    - Email templates for the activation, welcome and password reset emails.
 4. Users who register will receive your custom activation email linking to the configured page.
 
+## Security behaviour
+
+The plugin replaces flows that core keeps on `wp-login.php`, `wp-signup.php` and `wp-activate.php`, so it applies the same protections to the pages it owns:
+
+- **No passwords are ever emailed.** The welcome email carries a one-time reset link. The network's own `wpmu_welcome_user_notification()` email is suppressed, because `wpmu_activate_signup()` hands it a generated password and older networks' templates interpolate it in plain text. Filter `hm_user_activation_suppress_network_welcome_email` to change that.
+- **Keys never stay in URLs.** An activation or reset key arriving in a query string is moved into a scoped, HTTP-only, `SameSite=Lax` cookie and the page reloads without it, keeping it out of browser history, `Referer` headers, proxy logs and copy-pasted links. Reset submissions cross-check the posted key against that cookie with `hash_equals()`. Keys are dropped as soon as they are spent.
+- **These pages are never cached or indexed.** `nocache_headers()`, `DONOTCACHEPAGE` and core's sensitive-page robots and referrer meta are applied, so a page cache cannot store an activation success response — which contains a username and a live reset link — and replay it to the next visitor.
+- **Reset failures are indistinguishable.** Invalid, expired and mismatched keys share one message, and reset requests always report success, so neither can be used to enumerate accounts.
+- **Core's hooks are honoured**, so policy plugins still apply: `allow_password_reset`, `lostpassword_post`, `validate_password_reset`, and `wp_login` when auto-login is enabled.
+
+## Rate limiting
+
+These four pages want limiting: activation keys can be guessed given enough attempts, and the registration and reset forms both send mail to an address the caller supplies. The plugin deliberately does **not** do this itself.
+
+PHP only sees `REMOTE_ADDR`, which on most hosting is the load balancer or CDN rather than the visitor, so a PHP limiter either keys off a header the caller controls or throttles everyone behind one address as a single client. Per-client counters also have to be stored somewhere, and an attack is precisely the traffic that fills that store — thousands of transient rows in `wp_options`, or churn through the object cache, caused by the requests you were trying to shed.
+
+The server already has this, with fixed-size storage and eviction. Configure it there, in front of PHP.
+
+### nginx
+
+Recover the real client address first, or every request will share one key:
+
+```nginx
+# In http {} — the CIDRs of your load balancer or CDN.
+set_real_ip_from 10.0.0.0/8;
+real_ip_header   X-Forwarded-For;
+real_ip_recursive on;
+```
+
+Limit form submissions. Keying the zone off a `map` that is empty for non-`POST` requests means normal page views are not counted, since nginx skips requests whose key evaluates to an empty string:
+
+```nginx
+# In http {}. 10m of shared memory holds roughly 160k addresses and evicts
+# the oldest when full — no unbounded growth.
+map $request_method $hm_post_limit_key {
+    POST    $binary_remote_addr;
+    default "";
+}
+
+limit_req_zone $hm_post_limit_key zone=hm_forms:10m rate=5r/m;
+
+# Activation keys arrive by GET, so that page is limited on every request.
+limit_req_zone $binary_remote_addr zone=hm_activation:10m rate=20r/m;
+
+limit_req_status 429;
+```
+
+Then apply them to the pages, using your own slugs:
+
+```nginx
+location = /register/ {
+    limit_req zone=hm_forms burst=5 nodelay;
+    try_files $uri /index.php?$args;
+}
+
+location = /reset-password/ {
+    limit_req zone=hm_forms burst=5 nodelay;
+    try_files $uri /index.php?$args;
+}
+
+location = /activate/ {
+    limit_req zone=hm_activation burst=10 nodelay;
+    try_files $uri /index.php?$args;
+}
+```
+
+### Apache
+
+Again, recover the real client address first:
+
+```apache
+<IfModule mod_remoteip.c>
+    RemoteIPHeader        X-Forwarded-For
+    RemoteIPTrustedProxy  10.0.0.0/8
+</IfModule>
+```
+
+`mod_ratelimit` is a bandwidth throttle and will not help here. `mod_evasive` limits repeat requests to the same URI and is the simplest option:
+
+```apache
+<IfModule mod_evasive24.c>
+    # More than 5 requests for the same page within 60s blocks the client
+    # for 300s. State is held in memory, not on disk.
+    DOSPageCount      5
+    DOSPageInterval   60
+    DOSBlockingPeriod 300
+</IfModule>
+```
+
+For per-path rules rather than a site-wide threshold, `mod_qos` or `mod_security` give finer control.
+
+### At the edge
+
+If a CDN or WAF fronts the site — Cloudflare, Fastly, CloudFront — put the rules there instead. It sees the real client address without any of the above, and sheds the traffic before it reaches your origin at all.
+
 ## Registration hooks
 
 - `hm_user_activation_registration_enabled` — filter whether the form accepts submissions (`bool $enabled`, `string $network_setting`).
