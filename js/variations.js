@@ -6,6 +6,10 @@
  *  hm-user-activation/success — shown when activation succeeds.
  *  hm-user-activation/resent  — shown after a new activation link was requested.
  *
+ * Registration page variations (core/group):
+ *  hm-user-activation/registration-errors  — shown when registration fails.
+ *  hm-user-activation/registration-success — shown when a signup is created.
+ *
  * Password reset page variations (core/group):
  *  hm-user-activation/reset-errors          — shown when a reset action fails.
  *  hm-user-activation/reset-request-success — shown after a reset email is sent.
@@ -190,6 +194,108 @@
 						},
 					],
 				],
+			],
+		],
+	} );
+
+	// -------------------------------------------------------------------------
+	// Registration: Errors group variant
+	// -------------------------------------------------------------------------
+	registerBlockVariation( 'core/group', {
+		name: 'hm-user-activation/registration-errors',
+
+		title: __( 'Registration Errors', 'hm-user-activation' ),
+
+		description: __(
+			'Wrapper shown only when registration fails. The inner paragraph is bound to the registration error message.',
+			'hm-user-activation'
+		),
+
+		scope: [ 'inserter' ],
+
+		icon: 'admin-users',
+
+		isActive: function ( blockAttributes ) {
+			return (
+				blockAttributes.metadata &&
+				blockAttributes.metadata.variationName === 'hm-user-activation/registration-errors'
+			);
+		},
+
+		attributes: {
+			metadata: {
+				variationName: 'hm-user-activation/registration-errors',
+			},
+		},
+
+		innerBlocks: [
+			[
+				'core/paragraph',
+				{
+					placeholder: __( 'Registration error message…', 'hm-user-activation' ),
+					metadata: {
+						bindings: {
+							content: {
+								source: 'hm-user-activation/registration-error-message',
+							},
+						},
+					},
+				},
+			],
+		],
+	} );
+
+	// -------------------------------------------------------------------------
+	// Registration: Success group variant
+	// -------------------------------------------------------------------------
+	registerBlockVariation( 'core/group', {
+		name: 'hm-user-activation/registration-success',
+
+		title: __( 'Registration Success', 'hm-user-activation' ),
+
+		description: __(
+			'Wrapper shown only after a registration succeeds. Tells the user to check their inbox for the activation link.',
+			'hm-user-activation'
+		),
+
+		scope: [ 'inserter' ],
+
+		icon: 'admin-users',
+
+		isActive: function ( blockAttributes ) {
+			return (
+				blockAttributes.metadata &&
+				blockAttributes.metadata.variationName === 'hm-user-activation/registration-success'
+			);
+		},
+
+		attributes: {
+			metadata: {
+				variationName: 'hm-user-activation/registration-success',
+			},
+		},
+
+		innerBlocks: [
+			// Static confirmation paragraph.
+			[
+				'core/paragraph',
+				{
+					content: __( 'Thanks for registering!', 'hm-user-activation' ),
+				},
+			],
+
+			// Bound paragraph — outputs "We have sent an activation link to …"
+			[
+				'core/paragraph',
+				{
+					metadata: {
+						bindings: {
+							content: {
+								source: 'hm-user-activation/registration-message',
+							},
+						},
+					},
+				},
 			],
 		],
 	} );
