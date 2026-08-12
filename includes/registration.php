@@ -15,8 +15,6 @@
 
 namespace HM\UserActivation\Registration;
 
-use HM\UserActivation\Security;
-
 function bootstrap(): void {
 	// Redirect wp-signup.php requests to our registration page.
 	add_action( 'before_signup_header', __NAMESPACE__ . '\\maybe_redirect_wp_signup' );
@@ -122,17 +120,6 @@ function process( string $user_name, string $user_email ): void {
 			'success'       => false,
 			'error_code'    => 'registration_closed',
 			'error_message' => __( 'Registration is not currently open.', 'hm-user-activation' ),
-		] );
-		return;
-	}
-
-	// Cap signups per client: each one sends an activation email, and an open
-	// registration form is the obvious target for bulk account creation.
-	if ( Security\is_rate_limited( 'register', 5, 15 * MINUTE_IN_SECONDS ) ) {
-		result( [
-			'success'       => false,
-			'error_code'    => 'rate_limited',
-			'error_message' => Security\rate_limit_message(),
 		] );
 		return;
 	}
