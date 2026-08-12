@@ -57,6 +57,17 @@ Replaces WordPress Multisite's default `wp-signup.php` and `wp-activate.php` flo
    - Email templates for the activation, welcome and password reset emails.
 4. Users who register will receive your custom activation email linking to the configured page.
 
+## Security behaviour
+
+The plugin replaces flows that core keeps on `wp-login.php`, `wp-signup.php` and `wp-activate.php`, so it applies the same protections to the pages it owns:
+
+- **No passwords are ever emailed.** The welcome email carries a one-time reset link. The network's own `wpmu_welcome_user_notification()` email is suppressed, because `wpmu_activate_signup()` hands it a generated password and older networks' templates interpolate it in plain text. Filter `hm_user_activation_suppress_network_welcome_email` to change that.
+- **Keys never stay in URLs.** An activation or reset key arriving in a query string is moved into a scoped, HTTP-only, `SameSite=Lax` cookie and the page reloads without it, keeping it out of browser history, `Referer` headers, proxy logs and copy-pasted links. Reset submissions cross-check the posted key against that cookie with `hash_equals()`. Keys are dropped as soon as they are spent.
+- **These pages are never cached or indexed.** `nocache_headers()`, `DONOTCACHEPAGE` and core's sensitive-page robots and referrer meta are applied, so a page cache cannot store an activation success response — which contains a username and a live reset link — and replay it to the next visitor.
+- **Submissions are rate limited** per client, by hashed `REMOTE_ADDR`: activation key attempts, reset requests and registrations. Tune with `hm_user_activation_rate_limit`, `hm_user_activation_rate_limit_window`, and `hm_user_activation_client_ip` for sites behind a trusted proxy.
+- **Reset failures are indistinguishable.** Invalid, expired and mismatched keys share one message, and reset requests always report success, so neither can be used to enumerate accounts.
+- **Core's hooks are honoured**, so policy plugins still apply: `allow_password_reset`, `lostpassword_post`, `validate_password_reset`, and `wp_login` when auto-login is enabled.
+
 ## Registration hooks
 
 - `hm_user_activation_registration_enabled` — filter whether the form accepts submissions (`bool $enabled`, `string $network_setting`).

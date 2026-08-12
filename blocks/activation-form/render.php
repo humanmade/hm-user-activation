@@ -10,11 +10,8 @@
 
 use HM\UserActivation\Activation;
 
-// Key in the URL means activation is handled automatically — no form needed.
-if ( isset( $_GET['key'] ) ) {
-	return;
-}
-
+// A key arriving in the URL is stashed in a cookie and processed automatically,
+// so the only reason to render the form is that no key has been accepted yet.
 // Don't show the form after a successful activation.
 if ( Activation\is_success() ) {
 	return;

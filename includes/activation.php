@@ -11,6 +11,7 @@ namespace HM\UserActivation\Activation;
 
 use HM\UserActivation\Emails;
 use HM\UserActivation\PasswordReset;
+use HM\UserActivation\Security;
 
 function bootstrap(): void {
 	// Redirect wp-activate.php requests to our activation page.
@@ -50,16 +51,23 @@ function maybe_redirect_wp_activate(): void {
 		$url = add_query_arg( 'key', rawurlencode( $key ), $url );
 	}
 
-	wp_redirect( $url, 301 );
+	// A temporary redirect, not permanent: the URL carries a single-use key, and
+	// a 301 would be stored in browser and proxy caches. The target is a
+	// permalink we generated rather than user input, so wp_redirect() is used
+	// here — wp_safe_redirect() would reject the other host on a subdomain
+	// network and send the user to wp-admin instead.
+	wp_redirect( $url, 302 );
 	exit;
 }
 
 /**
  * Process an activation on the activation page.
  *
- * Two entry points:
- *  - GET ?key=…  → auto-process immediately using the site default auto-login setting.
+ * Three entry points:
  *  - POST        → process a manually submitted form (nonce verified).
+ *  - GET ?key=…  → move the key into a scoped, HTTP-only cookie and redirect to
+ *                  the clean permalink, so the key is not left in the URL.
+ *  - Key cookie  → process the stashed key using the site's auto-login setting.
  */
 function maybe_process_activation(): void {
 	$page_id = (int) get_option( 'hm_activation_page_id' );
@@ -68,41 +76,55 @@ function maybe_process_activation(): void {
 		return;
 	}
 
-	// GET: key present in URL — activate immediately, no form needed.
-	if ( isset( $_GET['key'] ) && ! isset( $_POST['_hm_activation_nonce'] ) ) {
-		$key = sanitize_text_field( wp_unslash( $_GET['key'] ) );
-		if ( $key ) {
-			process( $key, (bool) get_option( 'hm_activation_auto_login', false ) );
-		}
-		return;
-	}
-
 	// POST: manual form submission.
-	if ( empty( $_POST['_hm_activation_nonce'] ) ) {
+	if ( ! empty( $_POST['_hm_activation_nonce'] ) ) {
+		if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_hm_activation_nonce'] ) ), 'hm_activation' ) ) {
+			result( [
+				'success'       => false,
+				'error_code'    => 'nonce_failed',
+				'error_message' => __( 'Security check failed. Please refresh the page and try again.', 'hm-user-activation' ),
+			] );
+			return;
+		}
+
+		$key = sanitize_text_field( wp_unslash( $_POST['activation_key'] ?? '' ) );
+
+		if ( ! $key ) {
+			result( [
+				'success'       => false,
+				'error_code'    => 'empty_key',
+				'error_message' => __( 'Please enter your activation key.', 'hm-user-activation' ),
+			] );
+			return;
+		}
+
+		process( $key, (bool) get_option( 'hm_activation_auto_login', false ) );
 		return;
 	}
 
-	if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_hm_activation_nonce'] ) ), 'hm_activation' ) ) {
-		result( [
-			'success'       => false,
-			'error_code'    => 'nonce_failed',
-			'error_message' => __( 'Security check failed. Please refresh the page and try again.', 'hm-user-activation' ),
-		] );
-		return;
+	// GET: the key arrived in the URL. Stash it in a cookie and reload the page
+	// without it, so the key stays out of browser history, Referer headers and
+	// access logs, and cannot be shared by copying the address bar. Mirrors the
+	// way core handles password reset keys on wp-login.php.
+	if ( isset( $_GET['key'] ) ) {
+		$key = sanitize_text_field( wp_unslash( $_GET['key'] ) );
+
+		if ( $key ) {
+			Security\set_key_cookie( Security\ACTIVATION_COOKIE, $key, $page_id );
+
+			// Target is our own permalink, not user input — see the note in
+			// maybe_redirect_wp_activate() on wp_redirect() vs wp_safe_redirect().
+			wp_redirect( get_permalink( $page_id ) ?: home_url( '/' ), 302 );
+			exit;
+		}
 	}
 
-	$key = sanitize_text_field( wp_unslash( $_POST['activation_key'] ?? '' ) );
+	// A key stashed from a previous request — process it now.
+	$key = Security\get_key_cookie( Security\ACTIVATION_COOKIE );
 
-	if ( ! $key ) {
-		result( [
-			'success'       => false,
-			'error_code'    => 'empty_key',
-			'error_message' => __( 'Please enter your activation key.', 'hm-user-activation' ),
-		] );
-		return;
+	if ( $key ) {
+		process( $key, (bool) get_option( 'hm_activation_auto_login', false ) );
 	}
-
-	process( $key, (bool) get_option( 'hm_activation_auto_login', false ) );
 }
 
 /**
@@ -115,6 +137,18 @@ function process( string $key, bool $auto_login ): void {
 	}
 	$processed = true;
 
+	$page_id = (int) get_option( 'hm_activation_page_id' );
+
+	// Activation keys are guessable given enough attempts, so cap them.
+	if ( Security\is_rate_limited( 'activate', 10, 5 * MINUTE_IN_SECONDS ) ) {
+		result( [
+			'success'       => false,
+			'error_code'    => 'rate_limited',
+			'error_message' => Security\rate_limit_message(),
+		] );
+		return;
+	}
+
 	$activation = wpmu_activate_signup( $key );
 
 	if ( is_wp_error( $activation ) ) {
@@ -126,12 +160,19 @@ function process( string $key, bool $auto_login ): void {
 		return;
 	}
 
+	// The key is spent — drop the cookie so a later visit to the page cannot
+	// replay it, and so the success state is not rebuilt from a stale secret.
+	Security\clear_key_cookie( Security\ACTIVATION_COOKIE, $page_id );
+
 	$user_id = (int) $activation['user_id'];
 	$user    = get_user_by( 'id', $user_id );
 
-	if ( $auto_login ) {
+	if ( $auto_login && $user ) {
 		wp_set_current_user( $user_id );
 		wp_set_auth_cookie( $user_id );
+
+		// Let security, audit and two-factor plugins see the login.
+		do_action( 'wp_login', $user->user_login, $user );
 	}
 
 	// Generate a password reset key so the user can set their own password.
