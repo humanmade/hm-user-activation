@@ -1,0 +1,38 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "hm-user-activation/registration-form",
+	"version": "1.0.0",
+	"title": "Registration Form",
+	"category": "common",
+	"icon": "admin-users",
+	"description": "Displays the account registration form. Shows username and email fields and sends the activation email on submission, keeping registration on this site instead of the network's wp-signup.php.",
+	"keywords": [ "register", "registration", "signup", "sign up", "user", "form" ],
+	"supports": {
+		"html": false,
+		"reusable": false,
+		"inserter": true,
+		"color": {
+			"background": true,
+			"text": true
+		},
+		"spacing": {
+			"padding": true,
+			"margin": true
+		}
+	},
+	"attributes": {
+		"showEmailNotice": {
+			"type": "boolean",
+			"default": true
+		},
+		"showLoginLink": {
+			"type": "boolean",
+			"default": true
+		}
+	},
+	"textdomain": "hm-user-activation",
+	"editorScript": "file:./index.js",
+	"style": "file:./style.css",
+	"render": "file:./render.php"
+}

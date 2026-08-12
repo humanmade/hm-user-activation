@@ -27,6 +27,7 @@ if ( ! is_multisite() ) {
 	return;
 }
 
+require_once HM_USER_ACTIVATION_DIR . 'includes/registration.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/activation.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/emails.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/password-reset.php';
@@ -37,9 +38,10 @@ require_once HM_USER_ACTIVATION_DIR . 'includes/block-bindings.php';
 register_activation_hook( __FILE__, __NAMESPACE__ . '\\on_plugin_activation' );
 
 /**
- * Plugin activation: create the draft activation and password reset pages.
+ * Plugin activation: create the draft registration, activation and password reset pages.
  */
 function on_plugin_activation(): void {
+	PageSetup\create_registration_page();
 	PageSetup\create_activation_page();
 	PageSetup\create_password_reset_page();
 }
@@ -55,6 +57,7 @@ function multisite_required_notice(): void {
 }
 
 // Bootstrap.
+Registration\bootstrap();
 Activation\bootstrap();
 Emails\bootstrap();
 PasswordReset\bootstrap();
@@ -65,6 +68,7 @@ BlockBindings\bootstrap();
 add_action( 'init', __NAMESPACE__ . '\\register_blocks' );
 
 function register_blocks(): void {
+	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/registration-form' );
 	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/activation-form' );
 	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/password-reset' );
 	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/login-form' );
