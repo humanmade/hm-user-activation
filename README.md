@@ -23,6 +23,7 @@ Replaces WordPress Multisite's default `wp-activate.php` flow with a site-level 
 | Block / Variation | Purpose |
 |---|---|
 | `Activation Form` | Renders the activation key input and submit button |
+| `Resend Activation Form` | Renders an email field so a user can request a new activation link |
 | `Activation Errors` _(group variant)_ | Shown only on failure; inner paragraph bound to the error message |
 | `Activation Success` _(group variant)_ | Shown only on success; inner paragraphs bound to username and password |
 
@@ -31,6 +32,24 @@ Replaces WordPress Multisite's default `wp-activate.php` flow with a site-level 
 - `Activation: Error message`
 - `Activation: Username` / `Activation: Username (formatted)`
 - `Activation: Password` / `Activation: Password (formatted)`
+- `Activation: Login URL` — the login URL, for a "Log in" link in the success message
+
+## Link lifetime and resending
+
+**Link lifetime** — set **Activation link lifetime** in the settings to a number of hours. Links older than that show an "expired" error instead of activating. `0` (the default) means links never expire. Sites can also use the `hm_user_activation_link_lifetime` filter.
+
+**Resend block** — the `Resend Activation Form` block (`hm-user-activation/resend-form`) asks for an email address and always replies "If there's a pending registration for that address, we've sent a new activation link." The default activation page includes it in the errors group, so expired links lead straight to it. Existing pages need the block added by hand.
+
+**Resend function** — `HM\UserActivation\Resend\resend( string $email ): bool` replaces the key on the newest pending user signup for that address, restarts its lifetime and sends the activation email again. The old key stops working. It returns `true` if a signup was found and the email sent. Return `false` from the `hm_user_activation_can_resend` filter (`bool $can_resend, object $signup`) to block a resend.
+
+## Hooks
+
+- `hm_user_activation_link_lifetime` — filter the link lifetime in hours.
+- `hm_user_activation_can_resend` — filter whether a resend is allowed (`bool $can_resend, object $signup`).
+- `hm_user_activation_needs_password_setup` — return `false` to skip generating the password reset link (`bool $needs, int $user_id, array $meta`).
+- `hm_user_activation_send_welcome_email` — filter whether the welcome email is sent; defaults to the setting (`bool $send, int $user_id, array $meta`).
+- `hm_user_activation_login_url` — filter the login URL in the activation result (`string $url, int $user_id, array $meta`).
+- `hm_user_activation_activated` — action fired after a successful activation (`int $user_id, array $meta`).
 
 ## Setup
 
