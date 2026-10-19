@@ -47,7 +47,7 @@ function register_settings(): void {
 
 	register_setting( OPTION_GROUP, 'hm_activation_link_lifetime', [
 		'type'              => 'integer',
-		'sanitize_callback' => 'absint',
+		'sanitize_callback' => static fn( $value ): int => max( 0, (int) $value ),
 		'default'           => 0,
 	] );
 

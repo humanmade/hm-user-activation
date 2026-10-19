@@ -48,18 +48,19 @@ function maybe_process(): void {
 }
 
 /**
- * Replace the activation key of the newest pending user signup for an email
- * address and send a fresh activation email. The old key stops working.
+ * Replace the activation key of the newest pending signup for an email address
+ * and send a fresh activation email. The old key stops working. Refuses if the
+ * signup was registered or resent less than the resend interval ago.
  *
  * @param string $email Email address the user signed up with.
- * @return bool True if a pending signup was found and the email was sent.
+ * @return bool True if a pending signup was found and the email was handed to wp_mail().
  */
 function resend( string $email ): bool {
 	global $wpdb;
 
 	$signup = $wpdb->get_row(
 		$wpdb->prepare(
-			"SELECT * FROM {$wpdb->signups} WHERE user_email = %s AND active = 0 AND domain = '' ORDER BY registered DESC LIMIT 1",
+			"SELECT * FROM {$wpdb->signups} WHERE user_email = %s AND active = 0 ORDER BY registered DESC LIMIT 1",
 			$email
 		)
 	);
@@ -78,6 +79,17 @@ function resend( string $email ): bool {
 		return false;
 	}
 
+	/**
+	 * Filters the minimum time between resends for a signup.
+	 *
+	 * @param int $seconds Seconds since the signup was registered or last resent. Default 300.
+	 */
+	$interval = max( 0, (int) apply_filters( 'hm_user_activation_resend_interval', 5 * MINUTE_IN_SECONDS ) );
+	$sent_at  = strtotime( $signup->registered . ' UTC' );
+	if ( $interval && $sent_at && ( time() - $sent_at ) < $interval ) {
+		return false;
+	}
+
 	$key = substr( md5( time() . wp_rand() . $signup->user_email ), 0, 16 );
 
 	$updated = $wpdb->update(
@@ -86,14 +98,17 @@ function resend( string $email ): bool {
 			'activation_key' => $key,
 			'registered'     => current_time( 'mysql', true ),
 		],
-		[ 'signup_id' => $signup->signup_id ]
+		[
+			'signup_id' => $signup->signup_id,
+			'active'    => 0,
+		]
 	);
 
 	if ( ! $updated ) {
 		return false;
 	}
 
-	Emails\send_activation_email( $signup->user_email, $key, $signup->user_login, (array) maybe_unserialize( $signup->meta ) );
+	Emails\send_activation_email( $signup->user_email, $key, $signup->user_login);
 
 	return true;
 }
