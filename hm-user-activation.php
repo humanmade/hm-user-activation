@@ -2,7 +2,7 @@
 /**
  * Plugin Name: HM User Activation
  * Description: Handles user account activations within a multisite network site, replacing wp-activate.php behaviour. Provides customisable activation emails, an editable activation page with blocks, optional auto-login, a post-activation welcome email, and a full password reset flow.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Human Made
  * Author URI: https://humanmade.com
  * Requires at least: 6.5
