@@ -115,7 +115,7 @@ The plugin replaces flows that core keeps on `wp-login.php`, `wp-signup.php` and
 
 ## Rate limiting
 
-These pages want limiting. Activation keys can be guessed given enough attempts, and the registration and reset forms send mail to an address the caller supplies. The plugin deliberately does **not** do this itself.
+These pages want limiting. Activation keys can be guessed given enough attempts, and the registration, reset and resend forms send mail to an address the caller supplies. Apart from the resend form's own caps (see [Link lifetime and resending](#link-lifetime-and-resending)), the plugin deliberately does **not** do this itself.
 
 PHP only sees `REMOTE_ADDR`. On most hosting that is the load balancer or CDN, not the visitor. So a PHP limiter either trusts a header the caller controls, or treats everyone behind one address as a single client. Per-client counters also have to be stored somewhere, and an attack is exactly the traffic that fills that store: thousands of transient rows in `wp_options`, or churn through the object cache.
 
@@ -157,7 +157,8 @@ limit_req_status 429;
 Apply them in the `server {}` block. A `limit_req` set at server level applies to every `location` that does not set its own:
 
 ```nginx
-# Every front-end POST: these forms, wp-login.php and comments.
+# Every front-end POST: these forms, the resend form on any page,
+# wp-login.php and comments.
 limit_req zone=hm_forms burst=10 nodelay;
 
 # Every request to the activation page. Use your own slug, with the site path
