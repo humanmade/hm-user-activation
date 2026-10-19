@@ -52,6 +52,8 @@ Resend rules:
 - The form sends the email after the redirect, so timing doesn't show whether an address has a pending signup.
 - Return `false` from `hm_user_activation_can_resend` (`bool $can_resend, object $signup`) to block a resend.
 
+The resend count is removed from the signup before the plugin's activation page activates it. A signup activated some other way, such as core's `wp-activate.php` on a site without the plugin, may keep a `hm_activation_resends` entry in its user meta or the new site's options.
+
 Signups are network-wide, but the link lifetime and the email templates are per site. A resend from another site uses that site's settings.
 
 ## Hooks

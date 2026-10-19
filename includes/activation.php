@@ -129,6 +129,10 @@ function process( string $key, bool $auto_login ): void {
 		return;
 	}
 
+	if ( $signup ) {
+		Resend\clear_counter( $signup );
+	}
+
 	$activation = wpmu_activate_signup( $key );
 
 	if ( is_wp_error( $activation ) ) {

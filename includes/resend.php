@@ -198,6 +198,30 @@ function resend( string $email, bool $defer = false ): bool {
 }
 
 /**
+ * Remove the resend counter from a pending signup's stored meta, so core
+ * doesn't copy it into user meta or site options on activation.
+ */
+function clear_counter( object $signup ): void {
+	global $wpdb;
+
+	$meta = maybe_unserialize( $signup->meta );
+	if ( ! is_array( $meta ) || ! isset( $meta[ META_KEY ] ) ) {
+		return;
+	}
+
+	unset( $meta[ META_KEY ] );
+
+	$wpdb->update(
+		$wpdb->signups,
+		[ 'meta' => maybe_serialize( $meta ) ],
+		[
+			'activation_key' => $signup->activation_key,
+			'active'         => 0,
+		]
+	);
+}
+
+/**
  * Whether the current request is the redirect that follows a resend request.
  */
 function was_resent(): bool {
