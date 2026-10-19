@@ -255,6 +255,9 @@ function process_password_change( string $key, string $login, string $pass1, str
 		return;
 	}
 
+	$pass1 = trim( $pass1 );
+	$pass2 = trim( $pass2 );
+
 	/**
 	 * Fires before the new password is checked, as when a password is changed
 	 * on the profile screen. Both values are passed by reference.
@@ -263,9 +266,6 @@ function process_password_change( string $key, string $login, string $pass1, str
 	 * @param string $pass1      The new password.
 	 * @param string $pass2      The confirmed password.
 	 */
-	$pass1 = trim( $pass1 );
-	$pass2 = trim( $pass2 );
-
 	do_action_ref_array( 'check_passwords', [ $user->user_login, &$pass1, &$pass2 ] );
 
 	// validate_password_reset is not given the password, so policy plugins read
