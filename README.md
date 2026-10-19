@@ -103,67 +103,73 @@ Signups are network-wide, but the link lifetime and the email templates are per 
 
 The plugin replaces flows that core keeps on `wp-login.php`, `wp-signup.php` and `wp-activate.php`, so it applies the same protections to the pages it owns:
 
-- **No passwords are ever emailed.** The welcome email carries a one-time reset link. The network's own `wpmu_welcome_user_notification()` email is suppressed, because `wpmu_activate_signup()` hands it a generated password and older networks' templates interpolate it in plain text. Filter `hm_user_activation_suppress_network_welcome_email` to change that.
-- **Keys never stay in URLs.** An activation or reset key arriving in a query string is moved into a scoped, HTTP-only, `SameSite=Lax` cookie and the page reloads without it, keeping it out of browser history, `Referer` headers, proxy logs and copy-pasted links. Reset submissions cross-check the posted key against that cookie with `hash_equals()`. Keys are dropped as soon as they are spent.
-- **These pages are never cached or indexed.** `nocache_headers()`, `DONOTCACHEPAGE` and core's sensitive-page robots and referrer meta are applied, so a page cache cannot store an activation success response — which contains a username and a live reset link — and replay it to the next visitor.
-- **Reset failures are indistinguishable.** Invalid, expired and mismatched keys share one message, and reset requests always report success, so neither can be used to enumerate accounts.
-- **Core's hooks are honoured**, so policy plugins still apply: `allow_password_reset`, `lostpassword_post`, `validate_password_reset`, and `wp_login` when auto-login is enabled.
+- **No passwords are emailed.** `wpmu_activate_signup()` gives every new account a generated password, and core's default welcome templates print it. The plugin's own welcome email carries a one-time reset link instead.
+  - The network's user welcome email (`wpmu_welcome_user_notification()`) is suppressed. Filter `hm_user_activation_suppress_network_welcome_email` to change that. If you also turn off the plugin's welcome email, users get no email after activation.
+  - The new site welcome email for site signups (`wpmu_welcome_notification()`) is kept, because it is the only email with the new site's address. The password in it is replaced with a link to the reset page.
+- **Keys never stay in URLs.** An activation or reset key arriving in a query string is moved into a scoped, HTTP-only, `SameSite=Lax` cookie and the page reloads without it. This keeps it out of browser history, `Referer` headers, proxy logs and copy-pasted links. The cookies use a `wp-` prefix like core's own, so page caches and hosts that only pass `wp-` cookies through still work. The activation cookie is read once and then dropped, whether the key worked or not. Reset submissions cross-check the posted key against the cookie with `hash_equals()`, and the reset cookie is dropped once the key is spent or found invalid.
+- **These pages are never cached or indexed.** `nocache_headers()`, `batcache_cancel()` where Batcache is present, `DONOTCACHEPAGE` and core's sensitive-page robots and referrer meta are applied. A page cache therefore cannot store an activation success response, which contains a username and a live reset link, and replay it to the next visitor.
+- **Reset failures look the same.** Invalid, expired and mismatched keys share one message, and reset requests always report success.
+- **Core's hooks are honoured**, so captcha and password policy plugins still apply: `allow_password_reset` (through `get_password_reset_key()`), `lostpassword_form`, `lostpassword_post`, `resetpass_form`, `validate_password_reset`, and `wp_login` when auto-login is on.
+- **Auto-login never replaces a session.** If the visitor is already logged in, following an activation link activates the account but does not log them out of their own.
+- **Email templates cannot capture keys.** Site admins can edit the email templates, but the emails can go to any user on the network. A link that carries a key is always kept apart from the template text around it, so a template cannot join its own URL to the front of the link.
 
 ## Rate limiting
 
-These four pages want limiting: activation keys can be guessed given enough attempts, and the registration and reset forms both send mail to an address the caller supplies. The plugin deliberately does **not** do this itself.
+These pages want limiting. Activation keys can be guessed given enough attempts, and the registration and reset forms send mail to an address the caller supplies. The plugin deliberately does **not** do this itself.
 
-PHP only sees `REMOTE_ADDR`, which on most hosting is the load balancer or CDN rather than the visitor, so a PHP limiter either keys off a header the caller controls or throttles everyone behind one address as a single client. Per-client counters also have to be stored somewhere, and an attack is precisely the traffic that fills that store — thousands of transient rows in `wp_options`, or churn through the object cache, caused by the requests you were trying to shed.
+PHP only sees `REMOTE_ADDR`. On most hosting that is the load balancer or CDN, not the visitor. So a PHP limiter either trusts a header the caller controls, or treats everyone behind one address as a single client. Per-client counters also have to be stored somewhere, and an attack is exactly the traffic that fills that store: thousands of transient rows in `wp_options`, or churn through the object cache.
 
-The server already has this, with fixed-size storage and eviction. Configure it there, in front of PHP.
+The web server already does this with fixed-size storage and eviction. Configure it there, in front of PHP.
+
+Two things shape the rules:
+
+- Limit form `POST`s by method, not by page path. WordPress serves the same page at several URLs (`/register`, `/?page_id=12`, `/index.php?page_id=12`), and it does not redirect `POST`s to the canonical one, so a path match is easy to step around.
+- Activation keys also arrive by `GET`. Those requests are redirected to the page's canonical URL, so limiting that one path covers them.
 
 ### nginx
 
 Recover the real client address first, or every request will share one key:
 
 ```nginx
-# In http {} — the CIDRs of your load balancer or CDN.
+# In http {}. Use the CIDRs of your load balancer or CDN.
 set_real_ip_from 10.0.0.0/8;
 real_ip_header   X-Forwarded-For;
 real_ip_recursive on;
 ```
 
-Limit form submissions. Keying the zone off a `map` that is empty for non-`POST` requests means normal page views are not counted, since nginx skips requests whose key evaluates to an empty string:
+Then define the zones. nginx does not count a request whose key is an empty string, so the `map` decides what is counted:
 
 ```nginx
-# In http {}. 10m of shared memory holds roughly 160k addresses and evicts
-# the oldest when full — no unbounded growth.
-map $request_method $hm_post_limit_key {
-    POST    $binary_remote_addr;
-    default "";
+# In http {}. 10m of shared memory holds about 160k addresses and evicts the
+# oldest when full, so it cannot grow without bound.
+map "$request_method:$request_uri" $hm_post_limit_key {
+    "~^POST:[^?]*/(wp-admin|wp-json)/"  "";
+    "~^POST:"                           $binary_remote_addr;
+    default                             "";
 }
 
-limit_req_zone $hm_post_limit_key zone=hm_forms:10m rate=5r/m;
-
-# Activation keys arrive by GET, so that page is limited on every request.
+limit_req_zone $hm_post_limit_key  zone=hm_forms:10m      rate=10r/m;
 limit_req_zone $binary_remote_addr zone=hm_activation:10m rate=20r/m;
 
 limit_req_status 429;
 ```
 
-Then apply them to the pages, using your own slugs:
+Apply them in the `server {}` block. A `limit_req` set at server level applies to every `location` that does not set its own:
 
 ```nginx
-location = /register/ {
-    limit_req zone=hm_forms burst=5 nodelay;
-    try_files $uri /index.php?$args;
-}
+# Every front-end POST: these forms, wp-login.php and comments.
+limit_req zone=hm_forms burst=10 nodelay;
 
-location = /reset-password/ {
-    limit_req zone=hm_forms burst=5 nodelay;
-    try_files $uri /index.php?$args;
-}
-
+# Every request to the activation page. Use your own slug, with the site path
+# in front on a subdirectory network.
 location = /activate/ {
+    limit_req zone=hm_forms burst=10 nodelay;
     limit_req zone=hm_activation burst=10 nodelay;
     try_files $uri /index.php?$args;
 }
 ```
+
+This counts every front-end `POST` outside `wp-admin` and the REST API. If other plugins post to the front end often, such as a shop's cart requests, raise the rate or add their paths to the first line of the `map`. With plain permalinks the REST API is `/?rest_route=…`, so add that too. The activation `location` assumes pretty permalinks.
 
 ### Apache
 
@@ -176,23 +182,32 @@ Again, recover the real client address first:
 </IfModule>
 ```
 
-`mod_ratelimit` is a bandwidth throttle and will not help here. `mod_evasive` limits repeat requests to the same URI and is the simplest option:
+`mod_qos` can count only the requests you mark, in fixed-size shared memory:
 
 ```apache
-<IfModule mod_evasive24.c>
-    # More than 5 requests for the same page within 60s blocks the client
-    # for 300s. State is held in memory, not on disk.
-    DOSPageCount      5
-    DOSPageInterval   60
-    DOSBlockingPeriod 300
+<IfModule mod_qos.c>
+    # Up to 100k client addresses are tracked.
+    QS_ClientEntries 100000
+
+    # Mark front-end POSTs, but not wp-admin or the REST API.
+    SetEnvIf Request_Method "^POST$"         HM_LIMIT=1
+    SetEnvIf Request_URI    "/(wp-admin|wp-json)/" !HM_LIMIT
+
+    # Mark every request to the activation page.
+    SetEnvIf Request_URI    "^/activate/"    HM_LIMIT=1
+
+    # At most 10 marked requests per client per minute.
+    QS_ClientEventLimitCount 10 60 HM_LIMIT
 </IfModule>
 ```
 
-For per-path rules rather than a site-wide threshold, `mod_qos` or `mod_security` give finer control.
+If `mod_qos` still sees the proxy's address, set `QS_ClientIpFromHeader` to the header your proxy sets. `mod_security` can do the same with rules on `REQUEST_METHOD` and `REQUEST_URI`.
+
+Avoid `mod_evasive` and `mod_ratelimit` for this. `mod_evasive` settings apply to every URL on the server, so a limit strict enough to protect these forms also blocks editors in `wp-admin` and offices that share one address. `mod_ratelimit` limits bandwidth, not requests.
 
 ### At the edge
 
-If a CDN or WAF fronts the site — Cloudflare, Fastly, CloudFront — put the rules there instead. It sees the real client address without any of the above, and sheds the traffic before it reaches your origin at all.
+If a CDN or WAF fronts the site, such as Cloudflare, Fastly or CloudFront, put the rules there instead. It sees the real client address without any of the above, and stops the traffic before it reaches your server.
 
 ## Registration hooks
 
