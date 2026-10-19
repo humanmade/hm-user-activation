@@ -255,14 +255,22 @@ function process_password_change( string $key, string $login, string $pass1, str
 	 * @param string $pass1      The new password.
 	 * @param string $pass2      The confirmed password.
 	 */
+	$pass1 = trim( $pass1 );
+	$pass2 = trim( $pass2 );
+
 	do_action_ref_array( 'check_passwords', [ $user->user_login, &$pass1, &$pass2 ] );
 
+	// validate_password_reset is not given the password, so policy plugins read
+	// it from $_POST. Give them the exact value that will be stored, as
+	// wp-login.php does.
+	$_POST['pass1'] = $pass1;
+	$_POST['pass2'] = $pass2;
+
 	$errors = new \WP_Error();
-	$pass1  = trim( $pass1 );
 
 	if ( $pass1 === '' ) {
 		$errors->add( 'empty_password', __( 'Please enter a new password. It cannot be only spaces.', 'hm-user-activation' ) );
-	} elseif ( trim( $pass2 ) !== $pass1 ) {
+	} elseif ( $pass2 !== $pass1 ) {
 		$errors->add( 'password_mismatch', __( 'Passwords do not match. Please try again.', 'hm-user-activation' ) );
 	}
 
