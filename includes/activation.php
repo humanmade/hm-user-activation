@@ -115,6 +115,16 @@ function process( string $key, bool $auto_login ): void {
 	}
 	$processed = true;
 
+	$signup = get_signup_by_key( $key );
+	if ( $signup && ! (int) $signup->active && is_expired( $signup ) ) {
+		result( [
+			'success'       => false,
+			'error_code'    => 'expired_key',
+			'error_message' => __( 'This activation link has expired. Request a new one below.', 'hm-user-activation' ),
+		] );
+		return;
+	}
+
 	$activation = wpmu_activate_signup( $key );
 
 	if ( is_wp_error( $activation ) ) {
@@ -157,6 +167,41 @@ function process( string $key, bool $auto_login ): void {
 	if ( (bool) get_option( 'hm_activation_welcome_email_enabled', true ) ) {
 		Emails\send_welcome_email( $user_id, $reset_url );
 	}
+}
+
+/**
+ * Activation link lifetime in hours. 0 means links never expire.
+ */
+function get_link_lifetime(): int {
+	/**
+	 * Filters the activation link lifetime.
+	 *
+	 * @param int $hours Lifetime in hours. 0 means links never expire.
+	 */
+	return max( 0, (int) apply_filters( 'hm_user_activation_link_lifetime', (int) get_option( 'hm_activation_link_lifetime', 0 ) ) );
+}
+
+/**
+ * Look up a signup row by its activation key.
+ */
+function get_signup_by_key( string $key ): ?object {
+	global $wpdb;
+
+	return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->signups} WHERE activation_key = %s", $key ) );
+}
+
+/**
+ * Whether a signup was registered longer ago than the activation link lifetime.
+ */
+function is_expired( object $signup ): bool {
+	$lifetime = get_link_lifetime();
+	if ( ! $lifetime ) {
+		return false;
+	}
+
+	$registered = strtotime( $signup->registered . ' UTC' );
+
+	return $registered && ( time() - $registered ) > $lifetime * HOUR_IN_SECONDS;
 }
 
 /**
