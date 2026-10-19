@@ -131,8 +131,10 @@ function maybe_process_activation(): void {
 
 	// A key stashed from a previous request. It is read once and dropped
 	// whatever the outcome, as core's wp-activate.php does, so a failed key is
-	// not replayed on every later visit to the page.
-	$key = Security\get_key_cookie( Security\ACTIVATION_COOKIE );
+	// not replayed on every later visit to the page. Only GET and HEAD are
+	// redirected to the canonical, rate limited URL, so only they read it.
+	$method = strtoupper( sanitize_key( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? '' ) ) );
+	$key    = in_array( $method, [ 'GET', 'HEAD' ], true ) ? Security\get_key_cookie( Security\ACTIVATION_COOKIE ) : '';
 
 	if ( $key ) {
 		Security\clear_key_cookie( Security\ACTIVATION_COOKIE, $page_id );
