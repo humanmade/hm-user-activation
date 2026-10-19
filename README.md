@@ -86,3 +86,52 @@ Signups are network-wide, but the link lifetime and the email templates are per 
 
 ### Welcome email
 `{site_name}` `{site_url}` `{network_name}` `{username}` `{display_name}` `{first_name}` `{last_name}` `{nickname}` `{login_url}` `{password_reset_link}`
+
+## Testing
+
+The plugin has end-to-end tests that use Playwright, `@wordpress/scripts` and `@wordpress/env`. The tests run on a subdirectory multisite network with the plugin network-activated. Network activation matters because WordPress only loads network-active plugins on `wp-activate.php`.
+
+### Running the tests
+
+You need Node.js and Docker.
+
+1. Install dependencies and the browser:
+   ```bash
+   npm install
+   npx playwright install chromium
+   ```
+
+2. Start the WordPress environment. The tests site runs on port 8889.
+   ```bash
+   npm run wp-env start
+   ```
+
+3. Convert the site to a multisite network, activate the plugin and publish the pages the tests use. It is safe to run again.
+   ```bash
+   npm run env:setup
+   ```
+
+4. Run the tests:
+   ```bash
+   npm run test:e2e
+   ```
+
+If port 8888 is already in use, create a git-ignored `.wp-env.override.json` containing `{ "port": 8890 }`. The tests only use port 8889.
+
+### Other commands
+
+- `npm run test:e2e:debug` runs the tests in debug mode.
+- `npm run test:e2e:watch` reruns the tests when files change.
+- `npm run wp-env stop` stops the environment.
+- `WP_ENV_CORE=WordPress/WordPress#6.9.7 npm run wp-env start` runs against another WordPress version.
+
+### Test helpers
+
+`tests/mu-plugins/hmua-test-helpers.php` is only active when the `HMUA_TESTS` constant is set, which `.wp-env.json` does for the tests environment. It stores every outgoing email instead of sending it, and adds REST routes under `hmua-tests/v1` for reading mail, creating signups and users, and setting plugin options. `tests/e2e/fixtures.js` wraps these as the `hmua` fixture.
+
+### Coding standards
+
+```bash
+composer install
+composer lint
+```
