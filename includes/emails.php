@@ -34,6 +34,10 @@ function intercept_blog_notification( string $domain, string $path, string $titl
 
 /**
  * Build and dispatch the activation email to the registering user.
+ *
+ * @param string $user_email Address to send to.
+ * @param string $key        Activation key.
+ * @param string $username   Username being registered.
  */
 function send_activation_email( string $user_email, string $key, string $username ): void {
 	$page_id = (int) get_option( 'hm_activation_page_id' );
@@ -61,20 +65,42 @@ function send_activation_email( string $user_email, string $key, string $usernam
 }
 
 /**
+ * Login URL: the configured log in page if set, otherwise wp_login_url().
+ *
+ * @param int   $user_id Activated user ID, if known.
+ * @param array $meta    Signup meta, if known.
+ */
+function get_login_url( int $user_id = 0, array $meta = [] ): string {
+	$login_page_id = (int) get_option( 'hm_activation_login_page_id' );
+	$login_url     = ( $login_page_id ? get_permalink( $login_page_id ) : false ) ?: wp_login_url();
+
+	/**
+	 * Filters the login URL used after activation and in the welcome email.
+	 *
+	 * @param string $login_url Login URL.
+	 * @param int    $user_id   Activated user ID, or 0 if unknown.
+	 * @param array  $meta      Signup meta.
+	 */
+	return (string) apply_filters( 'hm_user_activation_login_url', $login_url, $user_id, $meta );
+}
+
+/**
  * Send the post-activation welcome email.
  * No password is included; a password reset link is provided instead.
  *
- * @param int    $user_id   Newly activated user ID.
- * @param string $reset_url Pre-generated password reset URL, if available.
+ * @param int    $user_id        Newly activated user ID.
+ * @param string $reset_url      Pre-generated password reset URL, if available.
+ * @param bool   $password_setup False if the user doesn't need a password link. {password_reset_link}
+ *                               becomes the login URL and the default body has no password step.
+ * @param array  $meta           Signup meta.
  */
-function send_welcome_email( int $user_id, string $reset_url = '' ): void {
+function send_welcome_email( int $user_id, string $reset_url = '', bool $password_setup = true, array $meta = [] ): void {
 	$user = get_user_by( 'id', $user_id );
 	if ( ! $user ) {
 		return;
 	}
 
-	$login_page_id = (int) get_option( 'hm_activation_login_page_id' );
-	$login_url     = $login_page_id ? get_permalink( $login_page_id ) : false;
+	$login_url = get_login_url( $user_id, $meta );
 
 	$placeholders = build_placeholders( [
 		'{username}'             => $user->user_login,
@@ -82,12 +108,12 @@ function send_welcome_email( int $user_id, string $reset_url = '' ): void {
 		'{last_name}'            => $user->last_name,
 		'{display_name}'         => $user->display_name,
 		'{nickname}'             => $user->nickname,
-		'{login_url}'            => $login_url ?: wp_login_url(),
-		'{password_reset_link}'  => $reset_url ?: wp_lostpassword_url(),
+		'{login_url}'            => $login_url,
+		'{password_reset_link}'  => $reset_url ?: ( $password_setup ? wp_lostpassword_url() : $login_url ),
 	] );
 
 	$subject = get_option( 'hm_activation_welcome_email_subject' ) ?: default_welcome_subject();
-	$body    = get_option( 'hm_activation_welcome_email_body' ) ?: default_welcome_body();
+	$body    = get_option( 'hm_activation_welcome_email_body' ) ?: ( $password_setup ? default_welcome_body() : default_welcome_body_without_password() );
 
 	wp_mail(
 		$user->user_email,
@@ -206,6 +232,16 @@ function default_welcome_body(): string {
 		__( 'Your username is: {username}', 'hm-user-activation' ),
 		__( 'Set your password: {password_reset_link}', 'hm-user-activation' ),
 		__( 'You can log in at: {login_url}', 'hm-user-activation' ),
+		__( '{site_name}', 'hm-user-activation' ),
+	] );
+}
+
+function default_welcome_body_without_password(): string {
+	return implode( "\n\n", [
+		__( 'Hi {display_name},', 'hm-user-activation' ),
+		__( 'Your account at {site_name} is ready.', 'hm-user-activation' ),
+		__( 'Your username is: {username}', 'hm-user-activation' ),
+		__( 'Log in at: {login_url}', 'hm-user-activation' ),
 		__( '{site_name}', 'hm-user-activation' ),
 	] );
 }

@@ -11,6 +11,7 @@ namespace HM\UserActivation\Activation;
 
 use HM\UserActivation\Emails;
 use HM\UserActivation\PasswordReset;
+use HM\UserActivation\Resend;
 
 function bootstrap(): void {
 	// Redirect wp-activate.php requests to our activation page.
@@ -21,6 +22,9 @@ function bootstrap(): void {
 
 	// Conditionally hide error/success group variants when irrelevant.
 	add_filter( 'render_block', __NAMESPACE__ . '\\filter_block_visibility', 10, 2 );
+
+	// Drop buttons bound to a URL that is empty after activation.
+	add_filter( 'render_block', __NAMESPACE__ . '\\filter_empty_url_buttons', 10, 2 );
 }
 
 /**
@@ -115,6 +119,20 @@ function process( string $key, bool $auto_login ): void {
 	}
 	$processed = true;
 
+	$signup = get_signup_by_key( $key );
+	if ( $signup && ! (int) $signup->active && is_expired( $signup ) ) {
+		result( [
+			'success'       => false,
+			'error_code'    => 'expired_key',
+			'error_message' => __( 'This activation link has expired. Request a new one below.', 'hm-user-activation' ),
+		] );
+		return;
+	}
+
+	if ( $signup ) {
+		Resend\clear_counter( $signup );
+	}
+
 	$activation = wpmu_activate_signup( $key );
 
 	if ( is_wp_error( $activation ) ) {
@@ -134,9 +152,36 @@ function process( string $key, bool $auto_login ): void {
 		wp_set_auth_cookie( $user_id );
 	}
 
+	$meta = (array) ( $activation['meta'] ?? [] );
+	unset( $meta[ Resend\META_KEY ] );
+
+	// Core activates with a generated password. If the stored hash no longer matches it, something has set a real one.
+	$needs_password_setup = ! $user
+		|| empty( $activation['password'] )
+		|| wp_check_password( $activation['password'], $user->user_pass, $user_id );
+
+	/**
+	 * Filters whether the new user needs to set a password.
+	 *
+	 * The default is true while the user still has the password generated
+	 * during activation, and false once something else has set one, for
+	 * example a hook on wpmu_activate_user. No password reset key or URL is
+	 * generated when this is false.
+	 *
+	 * Returning false for a user who only has the generated password leaves
+	 * them unable to log in until they use "lost password". Returning true
+	 * for a user who already has a password just sends them through a
+	 * harmless reset.
+	 *
+	 * @param bool  $needs   Whether to generate a password reset link.
+	 * @param int   $user_id Activated user ID.
+	 * @param array $meta    Signup meta.
+	 */
+	$needs_password_setup = (bool) apply_filters( 'hm_user_activation_needs_password_setup', $needs_password_setup, $user_id, $meta );
+
 	// Generate a password reset key so the user can set their own password.
 	$reset_url = '';
-	if ( $user ) {
+	if ( $user && $needs_password_setup ) {
 		$reset_page_id = (int) get_option( 'hm_activation_password_reset_page_id' );
 		if ( $reset_page_id ) {
 			$reset_key = get_password_reset_key( $user );
@@ -146,17 +191,77 @@ function process( string $key, bool $auto_login ): void {
 		}
 	}
 
+	$login_url = Emails\get_login_url( $user_id, $meta );
+
 	result( [
 		'success'   => true,
 		'user_id'   => $user_id,
 		'username'  => $user ? $user->user_login : '',
 		'reset_url' => $reset_url,
-		'meta'      => $activation['meta'] ?? [],
+		'login_url' => $login_url,
+		'meta'      => $meta,
 	] );
 
-	if ( (bool) get_option( 'hm_activation_welcome_email_enabled', true ) ) {
-		Emails\send_welcome_email( $user_id, $reset_url );
+	/**
+	 * Filters whether to send the welcome email.
+	 *
+	 * @param bool  $send    Whether to send it. Defaults to the welcome email setting.
+	 * @param int   $user_id Activated user ID.
+	 * @param array $meta    Signup meta.
+	 */
+	$send_welcome = (bool) apply_filters(
+		'hm_user_activation_send_welcome_email',
+		(bool) get_option( 'hm_activation_welcome_email_enabled', true ),
+		$user_id,
+		$meta
+	);
+
+	if ( $send_welcome ) {
+		Emails\send_welcome_email( $user_id, $reset_url, $needs_password_setup, $meta );
 	}
+
+	/**
+	 * Fires after an account has been activated.
+	 *
+	 * @param int   $user_id Activated user ID.
+	 * @param array $meta    Signup meta.
+	 */
+	do_action( 'hm_user_activation_activated', $user_id, $meta );
+}
+
+/**
+ * Activation link lifetime in hours. 0 means links never expire.
+ */
+function get_link_lifetime(): int {
+	/**
+	 * Filters the activation link lifetime.
+	 *
+	 * @param int $hours Lifetime in hours. 0 means links never expire.
+	 */
+	return max( 0, (int) apply_filters( 'hm_user_activation_link_lifetime', (int) get_option( 'hm_activation_link_lifetime', 0 ) ) );
+}
+
+/**
+ * Look up a signup row by its activation key.
+ */
+function get_signup_by_key( string $key ): ?object {
+	global $wpdb;
+
+	return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->signups} WHERE activation_key = %s", $key ) );
+}
+
+/**
+ * Whether a signup was registered longer ago than the activation link lifetime.
+ */
+function is_expired( object $signup ): bool {
+	$lifetime = get_link_lifetime();
+	if ( ! $lifetime ) {
+		return false;
+	}
+
+	$registered = strtotime( $signup->registered . ' UTC' );
+
+	return $registered && ( time() - $registered ) > $lifetime * HOUR_IN_SECONDS;
 }
 
 /**
@@ -172,12 +277,17 @@ function filter_block_visibility( string $block_content, array $parsed_block ): 
 		return $block_content;
 	}
 
+	$variation = $parsed_block['attrs']['metadata']['variationName'] ?? '';
+
+	// The resend block works on any page, so its confirmation is gated everywhere.
+	if ( $variation === 'hm-user-activation/resent' && ( ! Resend\was_resent() || is_success() || is_error() ) ) {
+		return '';
+	}
+
 	$page_id = (int) get_option( 'hm_activation_page_id' );
 	if ( ! $page_id || (int) get_queried_object_id() !== $page_id ) {
 		return $block_content;
 	}
-
-	$variation = $parsed_block['attrs']['metadata']['variationName'] ?? '';
 
 	if ( $variation === 'hm-user-activation/errors' && ! is_error() ) {
 		return '';
@@ -190,14 +300,40 @@ function filter_block_visibility( string $block_content, array $parsed_block ): 
 	return $block_content;
 }
 
+/**
+ * After a successful activation, hide buttons whose bound URL is empty,
+ * for example a "Set your password" button when no reset link was generated.
+ *
+ * @param string $block_content Rendered block HTML.
+ * @param array  $parsed_block  Parsed block data.
+ * @return string
+ */
+function filter_empty_url_buttons( string $block_content, array $parsed_block ): string {
+	if ( $parsed_block['blockName'] !== 'core/button' || ! is_success() ) {
+		return $block_content;
+	}
+
+	$source = $parsed_block['attrs']['metadata']['bindings']['url']['source'] ?? '';
+
+	if ( $source === 'hm-user-activation/reset-url' && ! get_reset_url() ) {
+		return '';
+	}
+
+	if ( $source === 'hm-user-activation/login-url' && ! get_login_url() ) {
+		return '';
+	}
+
+	return $block_content;
+}
+
 // -------------------------------------------------------------------------
 // State — result() acts as both getter and setter.
 // Call result( $value ) to set, result() to get.
 // -------------------------------------------------------------------------
 
 /**
- * @param array{success: bool, user_id?: int, username?: string, reset_url?: string, meta?: array, error_message?: string, error_code?: string}|null $value
- * @return array{success: bool, user_id?: int, username?: string, reset_url?: string, meta?: array, error_message?: string, error_code?: string}|null
+ * @param array{success: bool, user_id?: int, username?: string, reset_url?: string, login_url?: string, meta?: array, error_message?: string, error_code?: string}|null $value
+ * @return array{success: bool, user_id?: int, username?: string, reset_url?: string, login_url?: string, meta?: array, error_message?: string, error_code?: string}|null
  */
 function result( ?array $value = null ): ?array {
 	static $result = null;
@@ -227,4 +363,8 @@ function get_username(): string {
 
 function get_reset_url(): string {
 	return is_success() ? ( result()['reset_url'] ?? '' ) : '';
+}
+
+function get_login_url(): string {
+	return is_success() ? ( result()['login_url'] ?? '' ) : '';
 }

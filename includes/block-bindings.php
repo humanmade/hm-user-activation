@@ -9,6 +9,7 @@
  *  hm-user-activation/username             → "Activation: Username"
  *  hm-user-activation/username-message     → "Activation: Username (formatted)"
  *  hm-user-activation/reset-url            → "Activation: Password reset URL"
+ *  hm-user-activation/login-url            → "Activation: Login URL"
  *  hm-user-activation/reset-error-message  → "Password reset: Error message"
  */
 
@@ -42,6 +43,10 @@ function register_sources(): void {
 		'hm-user-activation/reset-url' => [
 			'label' => __( 'Activation: Password reset URL', 'hm-user-activation' ),
 			'key'   => 'reset_url',
+		],
+		'hm-user-activation/login-url' => [
+			'label' => __( 'Activation: Login URL', 'hm-user-activation' ),
+			'key'   => 'login_url',
 		],
 		'hm-user-activation/reset-error-message' => [
 			'label' => __( 'Password reset: Error message', 'hm-user-activation' ),
@@ -83,6 +88,9 @@ function get_binding_value( string $key ): ?string {
 
 		case 'reset_url':
 			return Activation\get_reset_url() ?: null;
+
+		case 'login_url':
+			return Activation\get_login_url() ?: null;
 
 		case 'reset_error_message':
 			return PasswordReset\get_error_message() ?: null;

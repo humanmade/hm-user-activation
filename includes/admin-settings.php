@@ -45,6 +45,12 @@ function register_settings(): void {
 		'default'           => false,
 	] );
 
+	register_setting( OPTION_GROUP, 'hm_activation_link_lifetime', [
+		'type'              => 'integer',
+		'sanitize_callback' => static fn( $value ): int => max( 0, (int) $value ),
+		'default'           => 0,
+	] );
+
 	register_setting( OPTION_GROUP, 'hm_activation_login_page_id', [
 		'type'              => 'integer',
 		'sanitize_callback' => 'absint',
@@ -122,6 +128,19 @@ function register_sections_and_fields(): void {
 			'label_for'   => 'hm_activation_auto_login',
 			'option'      => 'hm_activation_auto_login',
 			'description' => __( 'Automatically log users in after they activate their account.', 'hm-user-activation' ),
+		]
+	);
+
+	add_settings_field(
+		'hm_activation_link_lifetime',
+		__( 'Activation link lifetime', 'hm-user-activation' ),
+		__NAMESPACE__ . '\\field_number',
+		PAGE_SLUG,
+		'hm_activation_general',
+		[
+			'label_for'   => 'hm_activation_link_lifetime',
+			'option'      => 'hm_activation_link_lifetime',
+			'description' => __( 'Hours before an activation link expires. Use 0 for links that never expire.', 'hm-user-activation' ),
 		]
 	);
 
@@ -366,7 +385,7 @@ function field_login_page_select( array $args ): void {
 
 	printf(
 		'<p class="description">%s</p>',
-		wp_kses( __( 'Used as the <code>{login_url}</code> placeholder in the welcome email. Defaults to the WordPress login URL if none selected.', 'hm-user-activation' ), [ 'code' => [] ] )
+		wp_kses( __( 'Used for the <code>{login_url}</code> placeholder in the welcome email, the Activation: Login URL binding and the default Log in button. Defaults to the WordPress login URL if none selected.', 'hm-user-activation' ), [ 'code' => [] ] )
 	);
 }
 
@@ -419,6 +438,20 @@ function field_text( array $args ): void {
 		esc_attr( $args['placeholder'] ?? '' ),
 		esc_attr( $args['class'] ?? 'regular-text' )
 	);
+}
+
+function field_number( array $args ): void {
+	$option = $args['option'];
+	$value  = (int) get_option( $option );
+	printf(
+		'<input type="number" min="0" step="1" name="%s" id="%s" value="%s" class="small-text">',
+		esc_attr( $option ),
+		esc_attr( $option ),
+		esc_attr( (string) $value )
+	);
+	if ( isset( $args['description'] ) ) {
+		printf( '<p class="description">%s</p>', esc_html( $args['description'] ) );
+	}
 }
 
 function field_email( array $args ): void {

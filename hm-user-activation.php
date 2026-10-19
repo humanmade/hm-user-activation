@@ -29,6 +29,7 @@ if ( ! is_multisite() ) {
 
 require_once HM_USER_ACTIVATION_DIR . 'includes/activation.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/emails.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/resend.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/password-reset.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/admin-settings.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/page-setup.php';
@@ -57,6 +58,7 @@ function multisite_required_notice(): void {
 // Bootstrap.
 Activation\bootstrap();
 Emails\bootstrap();
+Resend\bootstrap();
 PasswordReset\bootstrap();
 Admin\bootstrap();
 BlockBindings\bootstrap();
@@ -68,6 +70,7 @@ function register_blocks(): void {
 	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/activation-form' );
 	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/password-reset' );
 	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/login-form' );
+	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/resend-form' );
 }
 
 add_action( 'enqueue_block_editor_assets', __NAMESPACE__ . '\\enqueue_editor_assets' );

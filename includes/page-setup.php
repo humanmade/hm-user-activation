@@ -52,8 +52,13 @@ function create_password_reset_page(): void {
 /**
  * Default block content for the activation page.
  *
- * Success group: shows username + a "Set your password" button bound to the
- * pre-generated reset URL stored in the activation result.
+ * Error group: shows the error message and the resend form, so an expired
+ * link leads straight to a new one.
+ *
+ * Resent group: confirmation shown after a new link was requested.
+ *
+ * Success group: shows username, a "Set your password" button bound to the
+ * pre-generated reset URL (dropped when there is none) and a "Log in" button.
  */
 function default_activation_page_content(): string {
 	return <<<'BLOCKS'
@@ -66,6 +71,14 @@ function default_activation_page_content(): string {
 <!-- wp:group {"metadata":{"variationName":"hm-user-activation/errors"},"className":"hm-activation-errors","style":{"border":{"radius":"4px"},"spacing":{"padding":{"top":"1rem","right":"1rem","bottom":"1rem","left":"1rem"}}}} -->
 <div class="wp-block-group hm-activation-errors"><!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"hm-user-activation/error-message"}}}} -->
 <p></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:hm-user-activation/resend-form /--></div>
+<!-- /wp:group -->
+
+<!-- wp:group {"metadata":{"variationName":"hm-user-activation/resent"},"className":"hm-activation-resent","style":{"border":{"radius":"4px"},"spacing":{"padding":{"top":"1rem","right":"1rem","bottom":"1rem","left":"1rem"}}}} -->
+<div class="wp-block-group hm-activation-resent"><!-- wp:paragraph -->
+<p>If there's a pending registration for that address, we've sent a new activation link.</p>
 <!-- /wp:paragraph --></div>
 <!-- /wp:group -->
 
@@ -81,6 +94,10 @@ function default_activation_page_content(): string {
 <!-- wp:buttons -->
 <div class="wp-block-buttons"><!-- wp:button {"metadata":{"bindings":{"url":{"source":"hm-user-activation/reset-url"}}}} -->
 <div class="wp-block-button"><a class="wp-block-button__link wp-element-button">Set your password</a></div>
+<!-- /wp:button -->
+
+<!-- wp:button {"className":"is-style-outline","metadata":{"bindings":{"url":{"source":"hm-user-activation/login-url"}}}} -->
+<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button">Log in</a></div>
 <!-- /wp:button --></div>
 <!-- /wp:buttons --></div>
 <!-- /wp:group -->
