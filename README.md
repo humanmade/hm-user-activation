@@ -37,19 +37,20 @@ Replaces WordPress Multisite's default `wp-activate.php` flow with a site-level 
 
 ## Link lifetime and resending
 
-**Link lifetime** — set **Activation link lifetime** in the settings to a number of hours. Links older than that show an "expired" error instead of activating. `0` (the default) means links never expire. Sites can also use the `hm_user_activation_link_lifetime` filter.
+**Link lifetime** — set **Activation link lifetime** in the settings to a number of hours. Links older than that show an "expired" error instead of activating. `0` (the default) means links never expire. Sites can also use the `hm_user_activation_link_lifetime` filter. Expiry is only enforced by the plugin's activation page. On a site where the plugin isn't active, core's `wp-activate.php` still accepts the key.
 
-**Resend block** — the `Resend Activation Form` block (`hm-user-activation/resend-form`) asks for an email address, then redirects back to the page with `?hm_activation_resent=1`. The reply is the same whether or not a registration exists, and a page refresh doesn't send another email. The default activation page includes the block in the errors group, so expired links lead straight to it, and adds an `Activation Link Resent` group that shows "If there's a pending registration for that address, we've sent a new activation link." only after that redirect. Existing pages need the block and the group added by hand.
+**Resend block** — the `Resend Activation Form` block (`hm-user-activation/resend-form`) asks for an email address, then redirects back to the page with `?hm_activation_resent=1`. The reply is the same whether or not a registration exists, and a page refresh doesn't send another email. The default activation page includes the block in the errors group, so expired links lead straight to it, and adds an `Activation Link Resent` group that shows "If there's a pending registration for that address, we've sent a new activation link." only after that redirect. The group only shows on the redirect, and not when an activation result is also showing. Existing pages need the block and the group added by hand.
 
-**Resend function** — `HM\UserActivation\Resend\resend( string $email ): bool` replaces the key on the newest pending user signup for that address, restarts its lifetime and sends the activation email again. The old key stops working. It returns `true` if a signup was found and the email sent. Return `false` from the `hm_user_activation_can_resend` filter (`bool $can_resend, object $signup`) to block a resend.
+**Resend function** — `HM\UserActivation\Resend\resend( string $email ): bool` replaces the key on the newest pending signup (user or site) for that address, restarts its lifetime and sends the activation email again. The old key stops working. It returns `true` if a signup was found and the email was handed to `wp_mail()`, and `false` if there is none, the signup was registered or resent less than 5 minutes ago, or a filter blocked it. The block gives the same reply either way. Return `false` from the `hm_user_activation_can_resend` filter (`bool $can_resend, object $signup`) to block a resend, and `hm_user_activation_resend_interval` (seconds, default `300`, `0` to turn off) to change the minimum time between resends.
 
 ## Hooks
 
 - `hm_user_activation_link_lifetime` — filter the link lifetime in hours.
+- `hm_user_activation_resend_interval` — filter the minimum seconds between resends for a signup (`int $seconds`).
 - `hm_user_activation_can_resend` — filter whether a resend is allowed (`bool $can_resend, object $signup`).
-- `hm_user_activation_needs_password_setup` — return `false` to skip generating the password reset link (`bool $needs, int $user_id, array $meta`). If the welcome email is still sent, `{password_reset_link}` in it becomes the login URL.
+- `hm_user_activation_needs_password_setup` — return `false` to skip generating the password reset link (`bool $needs, int $user_id, array $meta`). If the welcome email is still sent, `{password_reset_link}` in it becomes the login URL, and if the welcome email body setting is empty a default body without a password step is used. On the default activation page the "Set your password" button is dropped when there is no reset link, and a "Log in" button is shown.
 - `hm_user_activation_send_welcome_email` — filter whether the welcome email is sent; defaults to the setting (`bool $send, int $user_id, array $meta`).
-- `hm_user_activation_login_url` — filter the login URL in the activation result (`string $url, int $user_id, array $meta`).
+- `hm_user_activation_login_url` — filter the login URL used for the `Activation: Login URL` binding and `{login_url}` in the welcome email. It is the **Log in page** setting if set, otherwise `wp_login_url()` (`string $url, int $user_id, array $meta`).
 - `hm_user_activation_activated` — action fired after a successful activation (`int $user_id, array $meta`).
 
 ## Setup
