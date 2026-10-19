@@ -47,7 +47,12 @@ $error_html = [
 ?>
 <div <?php echo $wrapper_attributes; // phpcs:ignore WordPress.Security.EscapeOutput -- Escaped by get_block_wrapper_attributes(). ?>>
 	<form method="post" action="" class="hm-registration-form__form">
-		<?php wp_nonce_field( 'hm_register', '_hm_register_nonce' ); ?>
+		<?php
+		wp_nonce_field( 'hm_register', '_hm_register_nonce' );
+
+		/** This action is documented in wp-signup.php */
+		do_action( 'signup_hidden_fields', 'validate-user' );
+		?>
 
 		<p class="hm-registration-form__field">
 			<label class="hm-registration-form__label" for="hm-user-name">
