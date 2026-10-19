@@ -149,6 +149,7 @@ function process( string $key, bool $auto_login ): void {
 	}
 
 	$meta = (array) ( $activation['meta'] ?? [] );
+	unset( $meta[ Resend\META_KEY ] );
 
 	// Core activates with a generated password. If the stored hash no longer matches it, something has set a real one.
 	$needs_password_setup = ! $user

@@ -9,6 +9,7 @@
  */
 
 use HM\UserActivation\Activation;
+use HM\UserActivation\Resend;
 
 // Don't offer a new link after a successful activation.
 if ( Activation\is_success() ) {
@@ -18,7 +19,7 @@ if ( Activation\is_success() ) {
 $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-resend-form' ] );
 
 // Post back to the page without the old key in the URL.
-$action = get_permalink( get_queried_object_id() ) ?: home_url( '/' );
+$action = Resend\get_page_url();
 ?>
 <div <?php echo $wrapper_attributes; ?>>
 	<form method="post" action="<?php echo esc_url( $action ); ?>">
