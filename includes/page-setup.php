@@ -52,6 +52,9 @@ function create_password_reset_page(): void {
 /**
  * Default block content for the activation page.
  *
+ * Error group: shows the error message and the resend form, so an expired
+ * link leads straight to a new one.
+ *
  * Success group: shows username + a "Set your password" button bound to the
  * pre-generated reset URL stored in the activation result.
  */
@@ -66,7 +69,9 @@ function default_activation_page_content(): string {
 <!-- wp:group {"metadata":{"variationName":"hm-user-activation/errors"},"className":"hm-activation-errors","style":{"border":{"radius":"4px"},"spacing":{"padding":{"top":"1rem","right":"1rem","bottom":"1rem","left":"1rem"}}}} -->
 <div class="wp-block-group hm-activation-errors"><!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"hm-user-activation/error-message"}}}} -->
 <p></p>
-<!-- /wp:paragraph --></div>
+<!-- /wp:paragraph -->
+
+<!-- wp:hm-user-activation/resend-form /--></div>
 <!-- /wp:group -->
 
 <!-- wp:group {"metadata":{"variationName":"hm-user-activation/success"},"className":"hm-activation-success","style":{"border":{"radius":"4px"},"spacing":{"padding":{"top":"1rem","right":"1rem","bottom":"1rem","left":"1rem"}}}} -->

@@ -11,6 +11,7 @@ namespace HM\UserActivation\Activation;
 
 use HM\UserActivation\Emails;
 use HM\UserActivation\PasswordReset;
+use HM\UserActivation\Resend;
 
 function bootstrap(): void {
 	// Redirect wp-activate.php requests to our activation page.
@@ -271,7 +272,7 @@ function filter_block_visibility( string $block_content, array $parsed_block ): 
 
 	$variation = $parsed_block['attrs']['metadata']['variationName'] ?? '';
 
-	if ( $variation === 'hm-user-activation/errors' && ! is_error() ) {
+	if ( $variation === 'hm-user-activation/errors' && ! is_error() && ! Resend\has_response() ) {
 		return '';
 	}
 

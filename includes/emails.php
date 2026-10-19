@@ -20,7 +20,7 @@ function bootstrap(): void {
  * Returning false prevents the default WP email.
  */
 function intercept_user_notification( string $user_login, string $user_email, string $key, array $meta ): bool {
-	send_activation_email( $user_email, $key, $user_login );
+	send_activation_email( $user_email, $key, $user_login, $meta );
 	return false;
 }
 
@@ -28,14 +28,19 @@ function intercept_user_notification( string $user_login, string $user_email, st
  * Intercepts the blog-signup notification and sends our custom email instead.
  */
 function intercept_blog_notification( string $domain, string $path, string $title, string $user_login, string $user_email, string $key, array $meta ): bool {
-	send_activation_email( $user_email, $key, $user_login );
+	send_activation_email( $user_email, $key, $user_login, $meta );
 	return false;
 }
 
 /**
  * Build and dispatch the activation email to the registering user.
+ *
+ * @param string $user_email Address to send to.
+ * @param string $key        Activation key.
+ * @param string $username   Username being registered.
+ * @param array  $meta       Signup meta.
  */
-function send_activation_email( string $user_email, string $key, string $username ): void {
+function send_activation_email( string $user_email, string $key, string $username, array $meta = [] ): void {
 	$page_id = (int) get_option( 'hm_activation_page_id' );
 
 	if ( $page_id ) {
