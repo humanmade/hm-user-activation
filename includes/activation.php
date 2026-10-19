@@ -15,8 +15,9 @@ use HM\UserActivation\Resend;
 use HM\UserActivation\Security;
 
 function bootstrap(): void {
-	// Redirect wp-activate.php requests to our activation page.
-	add_action( 'plugins_loaded', __NAMESPACE__ . '\\maybe_redirect_wp_activate', 1 );
+	// Redirect wp-activate.php requests to our activation page. This needs
+	// init, because get_permalink() needs $wp_rewrite.
+	add_action( 'init', __NAMESPACE__ . '\\maybe_redirect_wp_activate', 1 );
 
 	// Process an activation form submission on the activation page.
 	add_action( 'template_redirect', __NAMESPACE__ . '\\maybe_process_activation' );
