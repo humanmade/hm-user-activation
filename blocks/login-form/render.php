@@ -31,4 +31,4 @@ $forgot_link = sprintf(
 
 $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-login-form' ] );
 
-echo '<div ' . $wrapper_attributes . '>' . $form . $forgot_link . '</div>';
+echo '<div ' . $wrapper_attributes . '>' . $form . $forgot_link . '</div>'; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- wp_login_form() and get_block_wrapper_attributes() return escaped markup

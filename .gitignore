@@ -1,1 +1,12 @@
 /vendor/
+node_modules/
+.wp-env/
+.wp-env.override.json
+.auth/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/
+.DS_Store
+composer.lock

@@ -46,8 +46,8 @@ function maybe_process(): void {
 
 		$key   = sanitize_text_field( wp_unslash( $_POST['rp_key']   ?? '' ) );
 		$login = sanitize_text_field( wp_unslash( $_POST['rp_login'] ?? '' ) );
-		$pass1 = wp_unslash( $_POST['pass1'] ?? '' );
-		$pass2 = wp_unslash( $_POST['pass2'] ?? '' );
+		$pass1 = wp_unslash( $_POST['pass1'] ?? '' ); // phpcs:ignore HM.Security.ValidatedSanitizedInput.InputNotSanitized -- Passwords must not be altered by sanitising
+		$pass2 = wp_unslash( $_POST['pass2'] ?? '' ); // phpcs:ignore HM.Security.ValidatedSanitizedInput.InputNotSanitized -- Passwords must not be altered by sanitising
 
 		process_password_change( $key, $login, $pass1, $pass2 );
 		return;

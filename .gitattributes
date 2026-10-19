@@ -1,0 +1,16 @@
+# Anything marked `export-ignore` is stripped from `git archive` output, which
+# is how the distributable plugin ZIP is built. This file is therefore the
+# single source of truth for what ships in a release.
+
+/.github export-ignore
+/tests export-ignore
+/node_modules export-ignore
+/.gitignore export-ignore
+/.gitattributes export-ignore
+/.wp-env.json export-ignore
+/playwright.config.js export-ignore
+/package.json export-ignore
+/package-lock.json export-ignore
+/phpcs.xml export-ignore
+/REVIEW.md export-ignore
+/composer.lock export-ignore

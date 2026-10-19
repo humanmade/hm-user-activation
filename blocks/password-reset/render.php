@@ -26,7 +26,7 @@ $is_reset_mode = $key && $login;
 
 $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-reset' ] );
 ?>
-<div <?php echo $wrapper_attributes; ?>>
+<div <?php echo $wrapper_attributes; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- get_block_wrapper_attributes() returns escaped attributes ?>>
 <?php if ( $is_reset_mode ) : ?>
 
 	<form method="post" action="" class="hm-password-reset__form">

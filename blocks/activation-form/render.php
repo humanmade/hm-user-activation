@@ -23,7 +23,7 @@ if ( Activation\is_success() ) {
 
 $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-activation-form' ] );
 ?>
-<div <?php echo $wrapper_attributes; ?>>
+<div <?php echo $wrapper_attributes; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- get_block_wrapper_attributes() returns escaped attributes ?>>
 	<form method="post" action="<?php echo esc_url( remove_query_arg( Resend\QUERY_ARG ) ); ?>">
 		<?php wp_nonce_field( 'hm_activation', '_hm_activation_nonce' ); ?>
 

@@ -1,0 +1,22 @@
+{
+	"core": "WordPress/WordPress#7.1",
+	"plugins": [],
+	"themes": [],
+	"mappings": {
+		"wp-content/plugins/hm-user-activation": ".",
+		"wp-content/mu-plugins": "./tests/mu-plugins"
+	},
+	"port": 8888,
+	"testsPort": 8889,
+	"config": {
+		"WP_DEBUG": true,
+		"SCRIPT_DEBUG": true
+	},
+	"env": {
+		"tests": {
+			"config": {
+				"HMUA_TESTS": true
+			}
+		}
+	}
+}
