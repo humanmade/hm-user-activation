@@ -55,6 +55,8 @@ function create_password_reset_page(): void {
  * Error group: shows the error message and the resend form, so an expired
  * link leads straight to a new one.
  *
+ * Resent group: confirmation shown after a new link was requested.
+ *
  * Success group: shows username + a "Set your password" button bound to the
  * pre-generated reset URL stored in the activation result.
  */
@@ -72,6 +74,12 @@ function default_activation_page_content(): string {
 <!-- /wp:paragraph -->
 
 <!-- wp:hm-user-activation/resend-form /--></div>
+<!-- /wp:group -->
+
+<!-- wp:group {"metadata":{"variationName":"hm-user-activation/resent"},"className":"hm-activation-resent","style":{"border":{"radius":"4px"},"spacing":{"padding":{"top":"1rem","right":"1rem","bottom":"1rem","left":"1rem"}}}} -->
+<div class="wp-block-group hm-activation-resent"><!-- wp:paragraph -->
+<p>If there's a pending registration for that address, we've sent a new activation link.</p>
+<!-- /wp:paragraph --></div>
 <!-- /wp:group -->
 
 <!-- wp:group {"metadata":{"variationName":"hm-user-activation/success"},"className":"hm-activation-success","style":{"border":{"radius":"4px"},"spacing":{"padding":{"top":"1rem","right":"1rem","bottom":"1rem","left":"1rem"}}}} -->

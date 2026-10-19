@@ -9,7 +9,6 @@
  */
 
 use HM\UserActivation\Activation;
-use HM\UserActivation\Resend;
 
 // Don't offer a new link after a successful activation.
 if ( Activation\is_success() ) {
@@ -17,16 +16,6 @@ if ( Activation\is_success() ) {
 }
 
 $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-resend-form' ] );
-
-// Same message whether or not a signup was found.
-if ( Resend\has_response() ) {
-	printf(
-		'<div %s><p class="hm-resend-form__message" role="status">%s</p></div>',
-		$wrapper_attributes,
-		esc_html( Resend\get_response_message() )
-	);
-	return;
-}
 
 // Post back to the page without the old key in the URL.
 $action = get_permalink( get_queried_object_id() ) ?: home_url( '/' );

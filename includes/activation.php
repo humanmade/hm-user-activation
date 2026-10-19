@@ -272,7 +272,11 @@ function filter_block_visibility( string $block_content, array $parsed_block ): 
 
 	$variation = $parsed_block['attrs']['metadata']['variationName'] ?? '';
 
-	if ( $variation === 'hm-user-activation/errors' && ! is_error() && ! Resend\has_response() ) {
+	if ( $variation === 'hm-user-activation/errors' && ! is_error() ) {
+		return '';
+	}
+
+	if ( $variation === 'hm-user-activation/resent' && ! Resend\was_resent() ) {
 		return '';
 	}
 

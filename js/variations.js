@@ -4,6 +4,7 @@
  * Activation page variations (core/group):
  *  hm-user-activation/errors  — shown when activation fails.
  *  hm-user-activation/success — shown when activation succeeds.
+ *  hm-user-activation/resent  — shown after a new activation link was requested.
  *
  * Password reset page variations (core/group):
  *  hm-user-activation/reset-errors          — shown when a reset action fails.
@@ -58,6 +59,46 @@
 							},
 						},
 					},
+				},
+			],
+		],
+	} );
+
+	// -------------------------------------------------------------------------
+	// Activation: Resent group variant
+	// -------------------------------------------------------------------------
+	registerBlockVariation( 'core/group', {
+		name: 'hm-user-activation/resent',
+
+		title: __( 'Activation Link Resent', 'hm-user-activation' ),
+
+		description: __(
+			'Wrapper shown only after a user has requested a new activation link.',
+			'hm-user-activation'
+		),
+
+		scope: [ 'inserter' ],
+
+		icon: 'email',
+
+		isActive: function ( blockAttributes ) {
+			return (
+				blockAttributes.metadata &&
+				blockAttributes.metadata.variationName === 'hm-user-activation/resent'
+			);
+		},
+
+		attributes: {
+			metadata: {
+				variationName: 'hm-user-activation/resent',
+			},
+		},
+
+		innerBlocks: [
+			[
+				'core/paragraph',
+				{
+					content: __( "If there's a pending registration for that address, we've sent a new activation link.", 'hm-user-activation' ),
 				},
 			],
 		],
