@@ -63,7 +63,17 @@ function ip_limit_reached(): bool {
 		return false;
 	}
 
-	$name  = 'hm_resend_ip_' . substr( hash( 'sha256', (string) ( $_SERVER['REMOTE_ADDR'] ?? '' ) ), 0, 32 );
+	/**
+	 * Filters the client IP address used for the resend limit.
+	 *
+	 * Sites behind a proxy or load balancer that doesn't restore the visitor's
+	 * address should return the real client IP here.
+	 *
+	 * @param string $ip Client IP address. Default REMOTE_ADDR.
+	 */
+	$ip = (string) apply_filters( 'hm_user_activation_client_ip', (string) ( $_SERVER['REMOTE_ADDR'] ?? '' ) );
+
+	$name  = 'hm_resend_ip_' . substr( hash( 'sha256', $ip ), 0, 32 );
 	$data  = get_site_transient( $name );
 	$until = is_array( $data ) ? (int) $data['until'] : time() + HOUR_IN_SECONDS;
 	$count = is_array( $data ) ? (int) $data['count'] : 0;

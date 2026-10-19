@@ -48,7 +48,8 @@ Resend rules:
 - While the link is still valid, the same link is sent again and the key and registered time are not changed, so a stranger can't invalidate someone else's link.
 - Once the link has expired, a new key is made and the lifetime restarts. The old key is gone.
 - Each signup can be resent 5 times (`hm_user_activation_resend_limit`, `0` for no limit), and not within 5 minutes of the last resend (`hm_user_activation_resend_interval`, seconds, `0` for none). The count is kept in the signup meta.
-- The resend form allows 10 requests per hour from one IP address (`hm_user_activation_resend_ip_limit`, `0` for no limit). Over the limit the reply is the same and nothing is sent.
+- The resend form allows 10 requests per hour from one IP address (`hm_user_activation_resend_ip_limit`, `0` for no limit). Over the limit the reply is the same and nothing is sent. The address comes from `REMOTE_ADDR`; behind a proxy that doesn't restore the visitor's address, use `hm_user_activation_client_ip` to supply it, or every visitor shares one limit.
+- If someone uses up a signup's resends while its link is still valid, every email still carries that valid link. With a link lifetime set, once the link expires and no resends are left, the person has to register again after core's two-day window.
 - The form sends the email after the redirect, so timing doesn't show whether an address has a pending signup.
 - Return `false` from `hm_user_activation_can_resend` (`bool $can_resend, object $signup`) to block a resend.
 
@@ -62,6 +63,7 @@ Signups are network-wide, but the link lifetime and the email templates are per 
 - `hm_user_activation_resend_interval` — filter the minimum seconds between resends for a signup (`int $seconds`).
 - `hm_user_activation_resend_limit` — filter how many times a signup can be resent (`int $limit`).
 - `hm_user_activation_resend_ip_limit` — filter resend requests per hour per IP address (`int $limit`).
+- `hm_user_activation_client_ip` — filter the client IP address used for the resend limit (`string $ip`).
 - `hm_user_activation_can_resend` — filter whether a resend is allowed (`bool $can_resend, object $signup`).
 - `hm_user_activation_needs_password_setup` — override whether the user is sent to set a password (`bool $needs, int $user_id, array $meta`). The default is `true` only while the user still has the password core generated during activation, so a password set by a hook on `wpmu_activate_user` skips the step automatically. Returning `false` for a user who only has the generated password leaves them unable to log in until they use "lost password". Returning `true` for a user who already has a password just sends them through a harmless reset. When `false`, no reset link is generated. If the welcome email is still sent, `{password_reset_link}` in it becomes the login URL, and if the welcome email body setting is empty a default body without a password step is used. On the default activation page the "Set your password" button is dropped when there is no reset link, and a "Log in" button is shown.
 - `hm_user_activation_send_welcome_email` — filter whether the welcome email is sent; defaults to the setting (`bool $send, int $user_id, array $meta`).
