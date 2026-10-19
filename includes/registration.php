@@ -290,16 +290,6 @@ function page_url(): string {
 	return get_permalink( $page_id ) ?: '';
 }
 
-/**
- * URL of the configured log in page, falling back to the WordPress login form.
- */
-function login_url(): string {
-	$page_id = (int) get_option( 'hm_activation_login_page_id' );
-	$url     = $page_id ? get_permalink( $page_id ) : false;
-
-	return $url ?: wp_login_url();
-}
-
 // -------------------------------------------------------------------------
 // State — result() acts as both getter and setter.
 // Call result( $value ) to set, result() to get.

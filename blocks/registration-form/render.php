@@ -11,6 +11,7 @@
  * variations on the page handle displaying the confirmation message.
  */
 
+use HM\UserActivation\Emails;
 use HM\UserActivation\Registration;
 
 if ( is_user_logged_in() ) {
@@ -112,7 +113,7 @@ $error_html = [
 
 	<?php if ( $show_login_link ) : ?>
 		<p class="hm-registration-form__login">
-			<a href="<?php echo esc_url( Registration\login_url() ); ?>">
+			<a href="<?php echo esc_url( Emails\get_login_url() ); ?>">
 				<?php esc_html_e( 'Already have an account? Log in', 'hm-user-activation' ); ?>
 			</a>
 		</p>
