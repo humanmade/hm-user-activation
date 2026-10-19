@@ -81,7 +81,8 @@ function suppress_network_welcome_email( $user_id, $password, $meta ) {
  * @return string
  */
 function redact_site_welcome_password( $welcome_email, $blog_id, $user_id, $password ) {
-	if ( ! is_string( $welcome_email ) || ! is_string( $password ) || $password === '' ) {
+	// Core passes "N/A" when a super admin creates a site for an existing user.
+	if ( ! is_string( $welcome_email ) || ! is_string( $password ) || $password === '' || $password === 'N/A' ) {
 		return $welcome_email;
 	}
 
@@ -284,7 +285,9 @@ function replace( string $text, array $placeholders ): string {
 		$text = (string) preg_replace( '/(?<=\S)' . preg_quote( $token, '/' ) . '/', ' ' . $token, $text );
 	}
 
-	return str_replace( array_keys( $placeholders ), array_values( $placeholders ), $text );
+	// One pass, so a value that contains or completes a placeholder, such as a
+	// site title of "{reset_link}", is never itself replaced.
+	return strtr( $text, $placeholders );
 }
 
 /**
