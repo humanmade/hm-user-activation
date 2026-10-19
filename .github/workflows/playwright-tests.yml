@@ -6,6 +6,13 @@ on:
     pull_request:
         branches: [main]
 
+permissions:
+    contents: read
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
 jobs:
     # Core is pinned per lane to an exact tag, not a branch, so a re-run of an
     # old commit resolves to the same WordPress.
@@ -85,6 +92,7 @@ jobs:
         needs: [ e2e ]
         if: always()
         runs-on: ubuntu-latest
+        permissions: {}
         steps:
             - name: Check lane results
               env:

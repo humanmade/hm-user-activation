@@ -93,7 +93,7 @@ runs:
               if-no-files-found: ignore
 
         - name: Comment PR with test results
-          uses: daun/playwright-report-comment@v3
+          uses: daun/playwright-report-comment@5359ae22f265fd2dfdb7744a0cc6614c5c3abde6 # v4.1.1
           if: always() && github.event_name == 'pull_request'
           continue-on-error: true
           with:

@@ -4,23 +4,15 @@ on:
   push:
     branches:
       - main
-    paths:
-      - '**.php'
-      - 'phpcs.xml'
-      - 'composer.json'
-      - 'composer.lock'
   pull_request:
     types:
       - opened
       - reopened
       - synchronize
       - ready_for_review
-    # Only run when PHP or the coding standards configuration change.
-    paths:
-      - '**.php'
-      - 'phpcs.xml'
-      - 'composer.json'
-      - 'composer.lock'
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
