@@ -14,6 +14,8 @@ Replaces WordPress Multisite's default `wp-signup.php` and `wp-activate.php` flo
 
 Once the page is published, `wp_registration_url()` and the `wp-login.php?action=register` link point at it for logged-out visitors. When the network allows user accounts only, requests to `wp-signup.php` are redirected there too. This needs the plugin to be active on the network's main site, because `wp-signup.php` always runs on the main site. When the network also allows sites, `wp-signup.php` stays with core so people can still sign up for a site, and logged-in users keep the "Add New Site" link in My Sites.
 
+New accounts become members of the site they registered on, with the site's default role (usually Subscriber). Core's `wp-signup.php` adds new users to no site at all. Use `hm_user_activation_signup_meta` to change the site or role.
+
 **Site-level activation page** — on plugin activation a draft page is created, pre-populated with the activation form block and conditional success/error blocks. Publish it and assign it in settings.
 
 **Customisable activation email** — replaces the default network activation email with one that links to your site's own activation page. Subject, from name, from address, and body are all editable.
@@ -100,7 +102,7 @@ Signups are network-wide, but the link lifetime and the email templates are per 
 ## Registration hooks
 
 - `hm_user_activation_registration_enabled` — filter whether the form accepts submissions (`bool $enabled`, `string $network_setting`).
-- `hm_user_activation_signup_meta` — filter the meta stored against the signup (`array $meta`, `string $user_name`, `string $user_email`). Core's `add_signup_meta` filter is applied first.
+- `hm_user_activation_signup_meta` — filter the meta stored against the signup (`array $meta`, `string $user_name`, `string $user_email`). The meta starts with `add_to_blog` (this site) and `new_role` (the default role). Core's `add_signup_meta` filter is applied first.
 - `hm_user_activation_registered` — action fired after a signup is created (`string $user_name`, `string $user_email`, `array $meta`).
 
 ## Email placeholders

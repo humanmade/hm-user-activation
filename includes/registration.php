@@ -157,14 +157,18 @@ function process( string $user_name, string $user_email ): void {
 	/**
 	 * Filter the meta stored against the signup.
 	 *
-	 * Mirrors core's add_signup_meta filter used by wp-signup.php so existing
-	 * integrations keep working, then allows a plugin-specific override.
+	 * Starts with add_to_blog and new_role so core's add_new_user_to_blog()
+	 * makes the user a member of this site on activation. Core's
+	 * add_signup_meta filter is applied first, then a plugin-specific one.
 	 *
 	 * @param array  $meta       Signup meta.
 	 * @param string $user_name  Sanitised username.
 	 * @param string $user_email Sanitised email address.
 	 */
-	$meta = apply_filters( 'add_signup_meta', [] );
+	$meta = apply_filters( 'add_signup_meta', [
+		'add_to_blog' => get_current_blog_id(),
+		'new_role'    => get_option( 'default_role' ),
+	] );
 	$meta = apply_filters( 'hm_user_activation_signup_meta', $meta, $user_name, $user_email );
 
 	wpmu_signup_user( $user_name, $user_email, $meta );
