@@ -71,7 +71,8 @@ function maybe_redirect_wp_activate(): void {
  *  - POST        → process a manually submitted form (nonce verified).
  *  - GET ?key=…  → move the key into a scoped, HTTP-only cookie and redirect to
  *                  the clean permalink, so the key is not left in the URL.
- *  - Key cookie  → process the stashed key using the site's auto-login setting.
+ *  - Key cookie  → clear it, then process the stashed key using the site's
+ *                  auto-login setting.
  */
 function maybe_process_activation(): void {
 	$page_id = (int) get_option( 'hm_activation_page_id' );
@@ -114,7 +115,12 @@ function maybe_process_activation(): void {
 		$key = sanitize_text_field( wp_unslash( $_GET['key'] ) );
 
 		if ( $key ) {
-			Security\set_key_cookie( Security\ACTIVATION_COOKIE, $key, $page_id );
+			// Headers already sent means no cookie and no redirect, so use the
+			// key from the URL for this request rather than losing it.
+			if ( ! Security\set_key_cookie( Security\ACTIVATION_COOKIE, $key, $page_id ) ) {
+				process( $key, (bool) get_option( 'hm_activation_auto_login', false ) );
+				return;
+			}
 
 			// Target is our own permalink, not user input — see the note in
 			// maybe_redirect_wp_activate() on wp_redirect() vs wp_safe_redirect().
@@ -123,10 +129,13 @@ function maybe_process_activation(): void {
 		}
 	}
 
-	// A key stashed from a previous request — process it now.
+	// A key stashed from a previous request. It is read once and dropped
+	// whatever the outcome, as core's wp-activate.php does, so a failed key is
+	// not replayed on every later visit to the page.
 	$key = Security\get_key_cookie( Security\ACTIVATION_COOKIE );
 
 	if ( $key ) {
+		Security\clear_key_cookie( Security\ACTIVATION_COOKIE, $page_id );
 		process( $key, (bool) get_option( 'hm_activation_auto_login', false ) );
 	}
 }
@@ -140,8 +149,6 @@ function process( string $key, bool $auto_login ): void {
 		return;
 	}
 	$processed = true;
-
-	$page_id = (int) get_option( 'hm_activation_page_id' );
 
 	$signup = get_signup_by_key( $key );
 	if ( $signup && ! (int) $signup->active && is_expired( $signup ) ) {
@@ -167,10 +174,6 @@ function process( string $key, bool $auto_login ): void {
 		] );
 		return;
 	}
-
-	// The key is spent — drop the cookie so a later visit to the page cannot
-	// replay it, and so the success state is not rebuilt from a stale secret.
-	Security\clear_key_cookie( Security\ACTIVATION_COOKIE, $page_id );
 
 	$user_id = (int) $activation['user_id'];
 	$user    = get_user_by( 'id', $user_id );

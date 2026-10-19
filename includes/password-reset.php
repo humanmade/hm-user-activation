@@ -45,9 +45,9 @@ function maybe_process(): void {
 		$key   = sanitize_text_field( wp_unslash( $_GET['key'] ) );
 		$login = sanitize_text_field( wp_unslash( $_GET['login'] ) );
 
-		if ( $key && $login ) {
-			Security\set_key_cookie( Security\RESET_COOKIE, $login . ':' . $key, $page_id );
-
+		// When headers were already sent there is no cookie to carry the key and
+		// no way to redirect, so render the page rather than a blank response.
+		if ( $key && $login && Security\set_key_cookie( Security\RESET_COOKIE, $login . ':' . $key, $page_id ) ) {
 			// Target is our own permalink rather than user input, so
 			// wp_safe_redirect()'s host allow-list is not needed here.
 			wp_redirect( get_permalink( $page_id ) ?: home_url( '/' ), 302 );

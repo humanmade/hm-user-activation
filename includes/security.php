@@ -26,9 +26,11 @@ namespace HM\UserActivation\Security;
 /**
  * Cookie name prefixes. The COOKIEHASH suffix is added at runtime so installs
  * sharing a domain do not collide, exactly as core does for its own cookies.
+ * The wp- prefix matches core's wp-activate- and wp-resetpass- cookies, which
+ * page caches and hosts recognise and pass through to PHP.
  */
-const ACTIVATION_COOKIE = 'hm-activate';
-const RESET_COOKIE      = 'hm-resetpass';
+const ACTIVATION_COOKIE = 'wp-hm-activate';
+const RESET_COOKIE      = 'wp-hm-resetpass';
 
 function bootstrap(): void {
 	// Never cache or index pages that carry account state.
@@ -72,9 +74,9 @@ function is_sensitive_page(): bool {
  *
  * The activation success state renders a one-time password reset link and the
  * account's username, so a full-page cache storing that response would serve
- * one user's credentials to the next visitor. DONOTCACHEPAGE is respected by
- * Batcache and the common page caching plugins; nocache_headers() covers
- * browsers and shared proxies.
+ * one user's credentials to the next visitor. nocache_headers() covers browsers,
+ * shared proxies and Batcache; DONOTCACHEPAGE covers the common page caching
+ * plugins.
  */
 function protect_sensitive_pages(): void {
 	if ( ! is_sensitive_page() ) {
@@ -85,6 +87,10 @@ function protect_sensitive_pages(): void {
 
 	if ( ! defined( 'DONOTCACHEPAGE' ) ) {
 		define( 'DONOTCACHEPAGE', true );
+	}
+
+	if ( function_exists( 'batcache_cancel' ) ) {
+		batcache_cancel();
 	}
 
 	if ( function_exists( 'wp_robots_sensitive_page' ) ) {
@@ -125,14 +131,13 @@ function cookie_name( string $prefix ): string {
  * @param string $prefix  One of the *_COOKIE constants.
  * @param string $value   Value to store.
  * @param int    $page_id Page the cookie is scoped to.
+ * @return bool False when headers were already sent and no cookie was set.
  */
-function set_key_cookie( string $prefix, string $value, int $page_id ): void {
+function set_key_cookie( string $prefix, string $value, int $page_id ): bool {
 	$name = cookie_name( $prefix );
 
-	// A theme printing output before template_redirect would make this a PHP
-	// warning rather than a cookie; the flow falls back to the key-entry form.
 	if ( headers_sent() ) {
-		return;
+		return false;
 	}
 
 	setcookie( $name, $value, [
@@ -146,6 +151,8 @@ function set_key_cookie( string $prefix, string $value, int $page_id ): void {
 
 	// Make it readable within this request too.
 	$_COOKIE[ $name ] = $value;
+
+	return true;
 }
 
 /**
