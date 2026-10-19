@@ -7,14 +7,6 @@
 	<!-- PHPCompatibility 9.x errors out if this is unset. -->
 	<config name="testVersion" value="8.1-" />
 
-	<rule ref="HM.Security.EscapeOutput.OutputNotEscaped">
-		<exclude-pattern>/blocks/*/render.php</exclude-pattern>
-		<exclude-pattern>/includes/admin-settings.php</exclude-pattern>
-	</rule>
-	<rule ref="HM.Security.ValidatedSanitizedInput.InputNotSanitized">
-		<exclude-pattern>/includes/password-reset.php</exclude-pattern>
-	</rule>
-
 	<file>.</file>
 
 	<exclude-pattern>/node_modules/*</exclude-pattern>

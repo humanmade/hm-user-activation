@@ -347,7 +347,7 @@ function field_page_select( array $args ): void {
 	wp_dropdown_pages( [
 		'name'             => 'hm_activation_page_id',
 		'id'               => 'hm_activation_page_id',
-		'selected'         => $value,
+		'selected'         => $value, // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- $value is cast to int
 		'show_option_none' => __( '— Select a page —', 'hm-user-activation' ),
 	] );
 
@@ -368,7 +368,7 @@ function field_login_page_select( array $args ): void {
 	wp_dropdown_pages( [
 		'name'              => 'hm_activation_login_page_id',
 		'id'                => 'hm_activation_login_page_id',
-		'selected'          => $value,
+		'selected'          => $value, // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- $value is cast to int
 		'show_option_none'  => __( '— Use default (WordPress login) —', 'hm-user-activation' ),
 		'option_none_value' => '0',
 	] );
@@ -395,7 +395,7 @@ function field_password_reset_page_select( array $args ): void {
 	wp_dropdown_pages( [
 		'name'             => 'hm_activation_password_reset_page_id',
 		'id'               => 'hm_activation_password_reset_page_id',
-		'selected'         => $value,
+		'selected'         => $value, // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- $value is cast to int
 		'show_option_none' => __( '— Select a page —', 'hm-user-activation' ),
 	] );
 

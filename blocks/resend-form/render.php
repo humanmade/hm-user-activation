@@ -21,7 +21,7 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-resend-form
 // Post back to the page without the old key in the URL.
 $action = Resend\get_page_url();
 ?>
-<div <?php echo $wrapper_attributes; ?>>
+<div <?php echo $wrapper_attributes; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- get_block_wrapper_attributes() returns escaped attributes ?>>
 	<form method="post" action="<?php echo esc_url( $action ); ?>">
 		<?php wp_nonce_field( 'hm_activation_resend', '_hm_resend_nonce' ); ?>
 
