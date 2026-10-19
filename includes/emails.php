@@ -17,7 +17,19 @@ function bootstrap(): void {
 
 	// Suppress the network's own post-activation welcome email.
 	add_filter( 'wpmu_welcome_user_notification', __NAMESPACE__ . '\\suppress_network_welcome_email', 10, 3 );
+
+	// Keep the generated password out of the new site welcome email.
+	add_filter( 'update_welcome_email', __NAMESPACE__ . '\\redact_site_welcome_password', 10, 4 );
 }
+
+/**
+ * Link placeholders whose URL carries a single-use key.
+ */
+const KEY_LINK_PLACEHOLDERS = [
+	'{activation_link}',
+	'{password_reset_link}',
+	'{reset_link}',
+];
 
 /**
  * Stop wpmu_welcome_user_notification() sending the network's welcome email.
@@ -52,6 +64,31 @@ function suppress_network_welcome_email( $user_id, $password, $meta ) {
 	$suppress = (bool) apply_filters( 'hm_user_activation_suppress_network_welcome_email', true, $user_id );
 
 	return $suppress ? false : $user_id;
+}
+
+/**
+ * Remove the generated password from the welcome email for a new site.
+ *
+ * Activating a site signup sends wpmu_welcome_notification(), whose default
+ * template has a PASSWORD line. That email is the only one that confirms the
+ * new site and its address, so it is kept and only the password is replaced
+ * with a pointer to the reset page.
+ *
+ * @param string $welcome_email Email body, with placeholders already replaced.
+ * @param int    $blog_id       New site ID.
+ * @param int    $user_id       User ID.
+ * @param string $password      The generated password.
+ * @return string
+ */
+function redact_site_welcome_password( $welcome_email, $blog_id, $user_id, $password ) {
+	if ( ! is_string( $welcome_email ) || ! is_string( $password ) || $password === '' ) {
+		return $welcome_email;
+	}
+
+	/* translators: %s: password reset page URL */
+	$notice = sprintf( __( 'Not sent by email. Set one at: %s', 'hm-user-activation' ), wp_lostpassword_url() );
+
+	return str_replace( $password, $notice, $welcome_email );
 }
 
 /**
@@ -239,6 +276,14 @@ function build_placeholders( array $extra = [] ): array {
  * @return string
  */
 function replace( string $text, array $placeholders ): string {
+	// Site admins can edit the templates, but the emails can go to any user on
+	// the network. A key link must not be joined to template text, or a
+	// template such as "https://example.com/?u={reset_link}" would send the key
+	// to that host when clicked. A space keeps the two apart.
+	foreach ( KEY_LINK_PLACEHOLDERS as $token ) {
+		$text = (string) preg_replace( '/(?<=\S)' . preg_quote( $token, '/' ) . '/', ' ' . $token, $text );
+	}
+
 	return str_replace( array_keys( $placeholders ), array_values( $placeholders ), $text );
 }
 
