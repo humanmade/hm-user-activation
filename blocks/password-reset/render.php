@@ -64,6 +64,14 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 			>
 		</p>
 
+		<?php
+		// Core's hook for extra reset fields, such as password policy notices.
+		$pending_user = PasswordReset\pending_user();
+		if ( $pending_user ) {
+			do_action( 'resetpass_form', $pending_user );
+		}
+		?>
+
 		<div class="hm-password-reset__submit wp-block-button">
 			<button type="submit" class="hm-password-reset__button wp-block-button__button wp-element-button">
 				<?php esc_html_e( 'Set password', 'hm-user-activation' ); ?>
@@ -89,6 +97,12 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 				autocomplete="username"
 			>
 		</p>
+
+		<?php
+		// Core's hook for extra request fields, such as a captcha checked on
+		// lostpassword_post.
+		do_action( 'lostpassword_form' );
+		?>
 
 		<div class="hm-password-reset__submit wp-block-button">
 			<button type="submit" class="hm-password-reset__button wp-block-button__button wp-element-button">

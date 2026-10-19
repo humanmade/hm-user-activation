@@ -109,20 +109,14 @@ function maybe_process(): void {
 
 	// Validate a stashed key up front so we don't render a form that cannot
 	// work, and so an expired link explains itself.
-	$pending = pending_credentials();
-
-	if ( $pending ) {
-		$user = check_password_reset_key( $pending['key'], $pending['login'] );
-
-		if ( is_wp_error( $user ) ) {
-			Security\clear_key_cookie( Security\RESET_COOKIE, $page_id );
-			result( [
-				'success'       => false,
-				'mode'          => 'reset',
-				'error_code'    => 'invalid_key',
-				'error_message' => invalid_key_message(),
-			] );
-		}
+	if ( pending_credentials() && ! pending_user() ) {
+		Security\clear_key_cookie( Security\RESET_COOKIE, $page_id );
+		result( [
+			'success'       => false,
+			'mode'          => 'reset',
+			'error_code'    => 'invalid_key',
+			'error_message' => invalid_key_message(),
+		] );
 	}
 }
 
@@ -148,6 +142,21 @@ function pending_credentials(): ?array {
 		'login' => $login,
 		'key'   => $key,
 	];
+}
+
+/**
+ * The user a stashed reset key belongs to, or null when the key is unusable.
+ */
+function pending_user(): ?\WP_User {
+	$pending = pending_credentials();
+
+	if ( ! $pending ) {
+		return null;
+	}
+
+	$user = check_password_reset_key( $pending['key'], $pending['login'] );
+
+	return $user instanceof \WP_User ? $user : null;
 }
 
 /**
@@ -202,21 +211,11 @@ function process_reset_request( string $email_or_login ): void {
 	}
 
 	// Always show success to avoid revealing whether the account exists.
+	// get_password_reset_key() applies core's allow_password_reset filter.
 	if ( $user ) {
-		/**
-		 * Core's filter for policies that forbid resets for certain accounts,
-		 * honoured here so those users cannot be reset through this page either.
-		 *
-		 * @param bool $allow   Whether to allow the password to be reset.
-		 * @param int  $user_id The user ID.
-		 */
-		$allow = apply_filters( 'allow_password_reset', true, $user->ID );
-
-		if ( $allow && ! is_wp_error( $allow ) ) {
-			$key = get_password_reset_key( $user );
-			if ( ! is_wp_error( $key ) ) {
-				Emails\send_password_reset_email( $user, $key );
-			}
+		$key = get_password_reset_key( $user );
+		if ( ! is_wp_error( $key ) ) {
+			Emails\send_password_reset_email( $user, $key );
 		}
 	}
 
