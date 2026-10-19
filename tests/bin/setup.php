@@ -43,6 +43,10 @@ flush_rewrite_rules( false );
 
 update_option( 'blogname', 'HMUA Test Site' );
 
+// A new network does not allow registration; the registration specs need it.
+update_site_option( 'registration', 'user' );
+
+PageSetup\create_registration_page();
 PageSetup\create_activation_page();
 PageSetup\create_password_reset_page();
 
@@ -61,6 +65,7 @@ if ( ! $login_page_id || ! get_post( $login_page_id ) ) {
 }
 
 $page_ids = [
+	(int) get_option( 'hm_activation_registration_page_id' ),
 	(int) get_option( 'hm_activation_page_id' ),
 	(int) get_option( 'hm_activation_password_reset_page_id' ),
 	$login_page_id,
