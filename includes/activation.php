@@ -144,9 +144,24 @@ function process( string $key, bool $auto_login ): void {
 		wp_set_auth_cookie( $user_id );
 	}
 
+	$meta = (array) ( $activation['meta'] ?? [] );
+
+	/**
+	 * Filters whether the new user needs to set a password.
+	 *
+	 * Return false when the site handles passwords itself, for example when
+	 * the user chose one at registration. No password reset key or URL is
+	 * generated in that case.
+	 *
+	 * @param bool  $needs   Whether to generate a password reset link. Default true.
+	 * @param int   $user_id Activated user ID.
+	 * @param array $meta    Signup meta.
+	 */
+	$needs_password_setup = (bool) apply_filters( 'hm_user_activation_needs_password_setup', true, $user_id, $meta );
+
 	// Generate a password reset key so the user can set their own password.
 	$reset_url = '';
-	if ( $user ) {
+	if ( $user && $needs_password_setup ) {
 		$reset_page_id = (int) get_option( 'hm_activation_password_reset_page_id' );
 		if ( $reset_page_id ) {
 			$reset_key = get_password_reset_key( $user );
@@ -156,17 +171,49 @@ function process( string $key, bool $auto_login ): void {
 		}
 	}
 
+	/**
+	 * Filters the login URL shown after a successful activation.
+	 *
+	 * @param string $login_url Login URL.
+	 * @param int    $user_id   Activated user ID.
+	 * @param array  $meta      Signup meta.
+	 */
+	$login_url = (string) apply_filters( 'hm_user_activation_login_url', wp_login_url(), $user_id, $meta );
+
 	result( [
 		'success'   => true,
 		'user_id'   => $user_id,
 		'username'  => $user ? $user->user_login : '',
 		'reset_url' => $reset_url,
-		'meta'      => $activation['meta'] ?? [],
+		'login_url' => $login_url,
+		'meta'      => $meta,
 	] );
 
-	if ( (bool) get_option( 'hm_activation_welcome_email_enabled', true ) ) {
+	/**
+	 * Filters whether to send the welcome email.
+	 *
+	 * @param bool  $send    Whether to send it. Defaults to the welcome email setting.
+	 * @param int   $user_id Activated user ID.
+	 * @param array $meta    Signup meta.
+	 */
+	$send_welcome = (bool) apply_filters(
+		'hm_user_activation_send_welcome_email',
+		(bool) get_option( 'hm_activation_welcome_email_enabled', true ),
+		$user_id,
+		$meta
+	);
+
+	if ( $send_welcome ) {
 		Emails\send_welcome_email( $user_id, $reset_url );
 	}
+
+	/**
+	 * Fires after an account has been activated.
+	 *
+	 * @param int   $user_id Activated user ID.
+	 * @param array $meta    Signup meta.
+	 */
+	do_action( 'hm_user_activation_activated', $user_id, $meta );
 }
 
 /**
@@ -241,8 +288,8 @@ function filter_block_visibility( string $block_content, array $parsed_block ): 
 // -------------------------------------------------------------------------
 
 /**
- * @param array{success: bool, user_id?: int, username?: string, reset_url?: string, meta?: array, error_message?: string, error_code?: string}|null $value
- * @return array{success: bool, user_id?: int, username?: string, reset_url?: string, meta?: array, error_message?: string, error_code?: string}|null
+ * @param array{success: bool, user_id?: int, username?: string, reset_url?: string, login_url?: string, meta?: array, error_message?: string, error_code?: string}|null $value
+ * @return array{success: bool, user_id?: int, username?: string, reset_url?: string, login_url?: string, meta?: array, error_message?: string, error_code?: string}|null
  */
 function result( ?array $value = null ): ?array {
 	static $result = null;
@@ -272,4 +319,8 @@ function get_username(): string {
 
 function get_reset_url(): string {
 	return is_success() ? ( result()['reset_url'] ?? '' ) : '';
+}
+
+function get_login_url(): string {
+	return is_success() ? ( result()['login_url'] ?? '' ) : '';
 }
