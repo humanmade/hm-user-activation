@@ -384,6 +384,7 @@ function field_registration_page_select( array $args ): void {
 	wp_dropdown_pages( [
 		'name'              => 'hm_activation_registration_page_id',
 		'id'                => 'hm_activation_registration_page_id',
+		'post_status'       => [ 'publish', 'draft' ],
 		'selected'          => $value,
 		'show_option_none'  => __( '— Select a page —', 'hm-user-activation' ),
 		'option_none_value' => '0',
@@ -401,7 +402,7 @@ function field_registration_page_select( array $args ): void {
 
 	printf(
 		'<p class="description">%s</p>',
-		esc_html__( 'Page containing the registration block. Registration links across the site, and requests to the network signup page, are sent here.', 'hm-user-activation' )
+		esc_html__( 'Page containing the registration block. Once it is published, registration links across the site, and requests to the network signup page, are sent here.', 'hm-user-activation' )
 	);
 
 	if ( ! Registration\is_registration_enabled() ) {

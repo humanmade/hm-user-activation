@@ -10,7 +10,9 @@ Replaces WordPress Multisite's default `wp-signup.php` and `wp-activate.php` flo
 
 ## Features
 
-**Site-level registration page** — registration happens on your own site instead of the network's `wp-signup.php`. Signups are created with core's multisite functions (`wpmu_validate_user_signup()` and `wpmu_signup_user()`), so all the usual validation — reserved and illegal names, banned email domains, existing users, pending signups — still applies. Requests to `wp-signup.php` and any `wp_registration_url()` links are redirected to the configured page.
+**Site-level registration page** — registration happens on your own site instead of the network's `wp-signup.php`. Signups are created with core's multisite functions (`wpmu_validate_user_signup()` and `wpmu_signup_user()`), so all the usual validation — reserved and illegal names, banned email domains, existing users, pending signups — still applies. Core's `wpmu_active_signup` filter is honoured too.
+
+Once the page is published, `wp_registration_url()` and the `wp-login.php?action=register` link point at it for logged-out visitors. When the network allows user accounts only, requests to `wp-signup.php` are redirected there too. This needs the plugin to be active on the network's main site, because `wp-signup.php` always runs on the main site. When the network also allows sites, `wp-signup.php` stays with core so people can still sign up for a site, and logged-in users keep the "Add New Site" link in My Sites.
 
 **Site-level activation page** — on plugin activation a draft page is created, pre-populated with the activation form block and conditional success/error blocks. Publish it and assign it in settings.
 
@@ -88,7 +90,7 @@ Signups are network-wide, but the link lifetime and the email templates are per 
 1. Enable user registration for the network under **Network Admin → Settings → Registration Settings** (either "User accounts may be registered" or "Both sites and user accounts can be registered").
 2. Activate the plugin on the target site.
 3. Go to **Settings → User Activation** and configure:
-   - **Registration page** — select the generated draft page (publish it when ready).
+   - **Registration page** — the generated draft page is selected for you. Registration links only point at it once it is published.
    - **Activation page** — select the generated draft page (publish it when ready).
    - **Password reset page** — select the generated draft page (publish it when ready).
    - **Log in page** — used as `{login_url}` in the welcome email.

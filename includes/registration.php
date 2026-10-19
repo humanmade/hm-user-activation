@@ -44,7 +44,13 @@ function maybe_redirect_wp_signup(): void {
 		return;
 	}
 
-	// Only user signups belong here — leave site (blog) signups to core.
+	// Only take over when the network allows user accounts and nothing else.
+	// With 'all', wp-signup.php also offers site signups, so it stays with core.
+	if ( active_signup() !== 'user' || ! is_registration_enabled() ) {
+		return;
+	}
+
+	// phpcs:ignore WordPress.Security.NonceVerification -- Presence check only; core verifies its own form.
 	if ( ! empty( $_GET['new'] ) || ! empty( $_POST['stage'] ) ) {
 		return;
 	}
@@ -186,7 +192,7 @@ function process( string $user_name, string $user_email ): void {
  * Settings; 'user' and 'all' both permit user accounts to be created.
  */
 function is_registration_enabled(): bool {
-	$setting = get_site_option( 'registration', 'none' );
+	$setting = active_signup();
 	$enabled = in_array( $setting, [ 'user', 'all' ], true );
 
 	/**
@@ -198,6 +204,15 @@ function is_registration_enabled(): bool {
 	return (bool) apply_filters( 'hm_user_activation_registration_enabled', $enabled, $setting );
 }
 
+/**
+ * The network registration setting after core's wpmu_active_signup filter:
+ * 'none', 'user', 'blog' or 'all'.
+ */
+function active_signup(): string {
+	/** This filter is documented in wp-signup.php */
+	return (string) apply_filters( 'wpmu_active_signup', get_site_option( 'registration', 'none' ) );
+}
+
 // -------------------------------------------------------------------------
 // Filters
 // -------------------------------------------------------------------------
@@ -206,14 +221,17 @@ function is_registration_enabled(): bool {
  * Point wp_registration_url() at our registration page.
  */
 function filter_register_url( string $url ): string {
-	return page_url() ?: $url;
+	return ( ! is_user_logged_in() ? page_url() : '' ) ?: $url;
 }
 
 /**
- * Point the signup location (used by wp-login.php's register link) at our page.
+ * Point the signup location at our page for logged-out visitors.
+ *
+ * Core also uses this filter for the "Add New Site" link in My Sites, which
+ * logged-in users need to keep reaching wp-signup.php.
  */
 function filter_signup_location( string $url ): string {
-	return page_url() ?: $url;
+	return ( ! is_user_logged_in() ? page_url() : '' ) ?: $url;
 }
 
 /**
@@ -247,12 +265,13 @@ function filter_block_visibility( string $block_content, array $parsed_block ): 
 // -------------------------------------------------------------------------
 
 /**
- * Permalink of the configured registration page, or an empty string.
+ * Permalink of the configured registration page, or an empty string if it is
+ * not set or not published.
  */
 function page_url(): string {
 	$page_id = (int) get_option( 'hm_activation_registration_page_id' );
 
-	if ( ! $page_id ) {
+	if ( ! $page_id || get_post_status( $page_id ) !== 'publish' ) {
 		return '';
 	}
 
