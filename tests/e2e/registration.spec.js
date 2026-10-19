@@ -266,12 +266,29 @@ test.describe( 'Registration links', () => {
 		await hmua.setPageStatus( PAGE_OPTION, 'publish' );
 	} );
 
-	test( "wp-login.php's register link leads to the registration page", async ( {
+	test( "wp-login.php's Register link points at the registration page", async ( {
 		page,
 	} ) => {
-		await page.goto( '/wp-login.php?action=register' );
+		await page.goto( '/wp-login.php' );
 
-		await expect( page ).toHaveURL( /\/create-an-account\/$/ );
+		await expect( page.locator( 'a.wp-login-register' ) ).toHaveAttribute(
+			'href',
+			/\/create-an-account\/$/
+		);
+	} );
+
+	test( 'wp-login.php?action=register redirects straight to the registration page', async ( {
+		page,
+		request,
+	} ) => {
+		const response = await request.get( '/wp-login.php?action=register', {
+			maxRedirects: 0,
+		} );
+
+		expect( response.status() ).toBe( 302 );
+		expect( response.headers().location ).toMatch( /\/create-an-account\/$/ );
+
+		await page.goto( '/wp-login.php?action=register' );
 		await expect( page.getByLabel( 'Username' ) ).toBeVisible();
 	} );
 
@@ -312,6 +329,13 @@ test.describe( 'Registration links', () => {
 	} ) => {
 		await hmua.setPageStatus( PAGE_OPTION, 'draft' );
 
+		await page.goto( '/wp-login.php' );
+		const href = await page
+			.locator( 'a.wp-login-register' )
+			.getAttribute( 'href' );
+		expect( href ).toMatch( /\/wp-login\.php\?action=register$/ );
+		expect( href ).not.toContain( 'page_id' );
+
 		await page.goto( '/wp-login.php?action=register' );
 
 		// Core's own signup page, not the draft's ?page_id= link.
@@ -330,10 +354,21 @@ test.describe( 'Signed-in users', () => {
 	test( 'the form is not shown to a signed-in user', async ( { page } ) => {
 		await page.goto( REGISTRATION_URL );
 
+		await expect(
+			page.getByRole( 'heading', { name: 'Create an Account' } ).first()
+		).toBeVisible();
 		await expect( page.getByLabel( 'Username' ) ).toHaveCount( 0 );
 		await expect(
 			page.getByRole( 'button', { name: 'Register' } )
 		).toHaveCount( 0 );
+	} );
+
+	test( 'a signed-in user is not redirected away from wp-signup.php', async ( {
+		page,
+	} ) => {
+		await page.goto( '/wp-signup.php' );
+
+		await expect( page ).toHaveURL( /\/wp-signup\.php$/ );
 	} );
 
 	test( '"Add New Site" in My Sites still goes to wp-signup.php', async ( {

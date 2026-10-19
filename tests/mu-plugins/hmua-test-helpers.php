@@ -277,10 +277,14 @@ function set_page_status( \WP_REST_Request $request ) {
 		return new \WP_Error( 'hmua_tests_page_status', 'No page is set for that option.', [ 'status' => 404 ] );
 	}
 
-	wp_update_post( [
+	$updated = wp_update_post( [
 		'ID'          => $page_id,
 		'post_status' => $status,
-	] );
+	], true );
+
+	if ( is_wp_error( $updated ) ) {
+		return $updated;
+	}
 
 	return [ 'id' => $page_id, 'status' => $status ];
 }
