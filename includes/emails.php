@@ -20,7 +20,7 @@ function bootstrap(): void {
  * Returning false prevents the default WP email.
  */
 function intercept_user_notification( string $user_login, string $user_email, string $key, array $meta ): bool {
-	send_activation_email( $user_email, $key, $user_login, $meta );
+	send_activation_email( $user_email, $key, $user_login );
 	return false;
 }
 
@@ -28,7 +28,7 @@ function intercept_user_notification( string $user_login, string $user_email, st
  * Intercepts the blog-signup notification and sends our custom email instead.
  */
 function intercept_blog_notification( string $domain, string $path, string $title, string $user_login, string $user_email, string $key, array $meta ): bool {
-	send_activation_email( $user_email, $key, $user_login, $meta );
+	send_activation_email( $user_email, $key, $user_login );
 	return false;
 }
 
@@ -38,9 +38,8 @@ function intercept_blog_notification( string $domain, string $path, string $titl
  * @param string $user_email Address to send to.
  * @param string $key        Activation key.
  * @param string $username   Username being registered.
- * @param array  $meta       Signup meta.
  */
-function send_activation_email( string $user_email, string $key, string $username, array $meta = [] ): void {
+function send_activation_email( string $user_email, string $key, string $username ): void {
 	$page_id = (int) get_option( 'hm_activation_page_id' );
 
 	if ( $page_id ) {
@@ -69,17 +68,18 @@ function send_activation_email( string $user_email, string $key, string $usernam
  * Send the post-activation welcome email.
  * No password is included; a password reset link is provided instead.
  *
- * @param int    $user_id   Newly activated user ID.
- * @param string $reset_url Pre-generated password reset URL, if available.
+ * @param int    $user_id        Newly activated user ID.
+ * @param string $reset_url      Pre-generated password reset URL, if available.
+ * @param bool   $password_setup False if the user doesn't need a password link; {password_reset_link} becomes the login URL.
  */
-function send_welcome_email( int $user_id, string $reset_url = '' ): void {
+function send_welcome_email( int $user_id, string $reset_url = '', bool $password_setup = true ): void {
 	$user = get_user_by( 'id', $user_id );
 	if ( ! $user ) {
 		return;
 	}
 
 	$login_page_id = (int) get_option( 'hm_activation_login_page_id' );
-	$login_url     = $login_page_id ? get_permalink( $login_page_id ) : false;
+	$login_url     = ( $login_page_id ? get_permalink( $login_page_id ) : false ) ?: wp_login_url();
 
 	$placeholders = build_placeholders( [
 		'{username}'             => $user->user_login,
@@ -87,8 +87,8 @@ function send_welcome_email( int $user_id, string $reset_url = '' ): void {
 		'{last_name}'            => $user->last_name,
 		'{display_name}'         => $user->display_name,
 		'{nickname}'             => $user->nickname,
-		'{login_url}'            => $login_url ?: wp_login_url(),
-		'{password_reset_link}'  => $reset_url ?: wp_lostpassword_url(),
+		'{login_url}'            => $login_url,
+		'{password_reset_link}'  => $reset_url ?: ( $password_setup ? wp_lostpassword_url() : $login_url ),
 	] );
 
 	$subject = get_option( 'hm_activation_welcome_email_subject' ) ?: default_welcome_subject();

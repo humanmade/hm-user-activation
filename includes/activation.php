@@ -205,7 +205,7 @@ function process( string $key, bool $auto_login ): void {
 	);
 
 	if ( $send_welcome ) {
-		Emails\send_welcome_email( $user_id, $reset_url );
+		Emails\send_welcome_email( $user_id, $reset_url, $needs_password_setup );
 	}
 
 	/**
