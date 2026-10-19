@@ -41,7 +41,7 @@ function maybe_process(): void {
 	}
 
 	// Move a key out of the URL and reload.
-	if ( isset( $_GET['key'], $_GET['login'] ) ) {
+	if ( isset( $_GET['key'] ) && isset( $_GET['login'] ) ) {
 		$key   = sanitize_text_field( wp_unslash( $_GET['key'] ) );
 		$login = sanitize_text_field( wp_unslash( $_GET['login'] ) );
 

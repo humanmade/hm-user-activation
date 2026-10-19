@@ -32,6 +32,9 @@ namespace HM\UserActivation\Security;
 const ACTIVATION_COOKIE = 'wp-hm-activate';
 const RESET_COOKIE      = 'wp-hm-resetpass';
 
+/**
+ * Register the cache and indexing protection hooks.
+ */
 function bootstrap(): void {
 	// Never cache or index pages that carry account state.
 	add_action( 'template_redirect', __NAMESPACE__ . '\\protect_sensitive_pages', 0 );
@@ -120,6 +123,8 @@ function sensitive_page_meta(): void {
 
 /**
  * Full cookie name for a prefix.
+ *
+ * @param string $prefix One of the *_COOKIE constants.
  */
 function cookie_name( string $prefix ): string {
 	return $prefix . '-' . COOKIEHASH;
@@ -157,6 +162,8 @@ function set_key_cookie( string $prefix, string $value, int $page_id ): bool {
 
 /**
  * Read a stored secret, or an empty string when absent.
+ *
+ * @param string $prefix One of the *_COOKIE constants.
  */
 function get_key_cookie( string $prefix ): string {
 	$name = cookie_name( $prefix );
@@ -170,6 +177,9 @@ function get_key_cookie( string $prefix ): string {
 
 /**
  * Delete a stored secret.
+ *
+ * @param string $prefix  One of the *_COOKIE constants.
+ * @param int    $page_id Page the cookie is scoped to.
  */
 function clear_key_cookie( string $prefix, int $page_id ): void {
 	$name = cookie_name( $prefix );
@@ -193,6 +203,8 @@ function clear_key_cookie( string $prefix, int $page_id ): void {
 /**
  * Path a key cookie is scoped to — the page's own path, so the secret is not
  * sent with every request to the site.
+ *
+ * @param int $page_id Page ID.
  */
 function cookie_path( int $page_id ): string {
 	$permalink = $page_id ? get_permalink( $page_id ) : '';
@@ -210,6 +222,8 @@ function cookie_path( int $page_id ): string {
  *
  * The from name and subject come from editable options, so a value containing
  * newlines would otherwise allow additional headers to be injected.
+ *
+ * @param string $value Header value.
  */
 function sanitize_header_value( string $value ): string {
 	$value = preg_replace( '/[\r\n\t]+/', ' ', $value );

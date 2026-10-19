@@ -34,12 +34,10 @@ const KEY_LINK_PLACEHOLDERS = [
 /**
  * Stop wpmu_welcome_user_notification() sending the network's welcome email.
  *
- * wpmu_activate_signup() generates a random password for the new account and
- * hands it to that function, which interpolates it into the network's
- * welcome_user_email option. Networks created before core dropped the PASSWORD
- * token — and any network whose admin has since edited the template — therefore
- * email the password in plain text, which is exactly what core's single-site
- * flow stopped doing when it moved to reset links in 4.3.
+ * When an account is activated, core generates a random password and passes it
+ * to that function, which puts it into the network's welcome_user_email
+ * template. Core's default template has a PASSWORD line, so the password is
+ * emailed in plain text.
  *
  * This plugin sends its own welcome email containing a one-time reset link
  * instead, so the network's copy is both redundant and a disclosure risk. The
@@ -305,6 +303,9 @@ function build_headers(): array {
  *
  * Subjects come from editable options and are interpolated with placeholder
  * values, so strip anything that could inject a header before handing it over.
+ *
+ * @param string               $subject      Subject template.
+ * @param array<string,string> $placeholders Placeholder values.
  */
 function build_subject( string $subject, array $placeholders ): string {
 	return Security\sanitize_header_value(
