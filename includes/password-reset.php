@@ -215,13 +215,21 @@ function process_reset_request( string $email_or_login ): void {
 		return;
 	}
 
-	// Always show success to avoid revealing whether the account exists.
-	// get_password_reset_key() applies core's allow_password_reset filter.
+	// Always show success to avoid revealing whether the account exists. The
+	// key and email are made after the response, as the resend form does, so
+	// the time taken does not reveal it either. get_password_reset_key()
+	// applies core's allow_password_reset filter.
 	if ( $user ) {
-		$key = get_password_reset_key( $user );
-		if ( ! is_wp_error( $key ) ) {
-			Emails\send_password_reset_email( $user, $key );
-		}
+		add_action( 'shutdown', static function () use ( $user ): void {
+			if ( function_exists( 'fastcgi_finish_request' ) ) {
+				fastcgi_finish_request();
+			}
+
+			$key = get_password_reset_key( $user );
+			if ( ! is_wp_error( $key ) ) {
+				Emails\send_password_reset_email( $user, $key );
+			}
+		} );
 	}
 
 	result( [ 'success' => true, 'mode' => 'request' ] );
