@@ -167,11 +167,19 @@ test.describe( 'Password reset block', () => {
 	test( 'errors from lostpassword_post are shown and nothing is sent', async ( {
 		page,
 		hmua,
+		baseURL,
 	} ) => {
-		const address = `hmua-blocked-${ hmua.newIdentity().login }@example.com`;
+		const blocked = await hmua.createUser( OLD_PASSWORD );
+		const control = await hmua.createUser( OLD_PASSWORD );
+
+		await page
+			.context()
+			.addCookies( [
+				{ name: 'hmua_test_block_reset', value: '1', url: baseURL },
+			] );
 
 		await page.goto( '/reset-your-password/' );
-		await page.getByLabel( 'Username or email address' ).fill( address );
+		await page.getByLabel( 'Username or email address' ).fill( blocked.email );
 		await page.getByRole( 'button', { name: 'Get new password' } ).click();
 
 		await expect( page.locator( '.hm-reset-errors' ) ).toContainText(
@@ -180,7 +188,13 @@ test.describe( 'Password reset block', () => {
 		await expect(
 			page.getByText( 'you will receive a password reset link shortly' )
 		).toHaveCount( 0 );
-		expect( await hmua.mail.all( address ) ).toHaveLength( 0 );
+
+		// A request that is let through, so its email marks the point by
+		// which any email for the blocked request would have been sent.
+		await page.context().clearCookies( { name: 'hmua_test_block_reset' } );
+		await requestResetLink( page, hmua, control.email );
+
+		expect( await hmua.mail.all( blocked.email ) ).toHaveLength( 0 );
 	} );
 
 	test( 'rejects a password that is only spaces', async ( { page, hmua } ) => {

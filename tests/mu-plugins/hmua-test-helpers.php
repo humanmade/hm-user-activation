@@ -154,15 +154,13 @@ add_action(
 );
 
 /**
- * A stand-in captcha: refuse reset requests for addresses starting with
- * `hmua-blocked`.
+ * A stand-in captcha: with the `hmua_test_block_reset` cookie set, refuse
+ * every reset request.
  */
 add_action(
 	'lostpassword_post',
 	static function ( \WP_Error $errors ): void {
-		$login = wp_unslash( (string) ( $_POST['user_login'] ?? '' ) );
-
-		if ( strpos( $login, 'hmua-blocked' ) === 0 ) {
+		if ( ! empty( $_COOKIE['hmua_test_block_reset'] ) ) {
 			$errors->add( 'hmua_test_blocked', 'Test hook: this request was blocked.' );
 		}
 	}

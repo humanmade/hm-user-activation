@@ -97,10 +97,11 @@ test.describe( 'Hardening', () => {
 		expect( cookie ).toBeTruthy();
 		const name = cookie.split( '=' )[ 0 ];
 
-		await request.fetch( '/activate-your-account/', {
+		const put = await request.fetch( '/activate-your-account/', {
 			method: 'PUT',
 			headers: { Cookie: `${ name }=${ signup.key }` },
 		} );
+		expect( put.ok() ).toBe( true );
 		expect( ( await hmua.getUser( signup.login ) ).exists ).toBe( false );
 
 		await request.get( '/activate-your-account/', {
