@@ -22,6 +22,9 @@ function bootstrap(): void {
 
 	// Conditionally hide error/success group variants when irrelevant.
 	add_filter( 'render_block', __NAMESPACE__ . '\\filter_block_visibility', 10, 2 );
+
+	// Drop buttons bound to a URL that is empty after activation.
+	add_filter( 'render_block', __NAMESPACE__ . '\\filter_empty_url_buttons', 10, 2 );
 }
 
 /**
@@ -172,14 +175,7 @@ function process( string $key, bool $auto_login ): void {
 		}
 	}
 
-	/**
-	 * Filters the login URL shown after a successful activation.
-	 *
-	 * @param string $login_url Login URL.
-	 * @param int    $user_id   Activated user ID.
-	 * @param array  $meta      Signup meta.
-	 */
-	$login_url = (string) apply_filters( 'hm_user_activation_login_url', wp_login_url(), $user_id, $meta );
+	$login_url = Emails\get_login_url( $user_id, $meta );
 
 	result( [
 		'success'   => true,
@@ -205,7 +201,7 @@ function process( string $key, bool $auto_login ): void {
 	);
 
 	if ( $send_welcome ) {
-		Emails\send_welcome_email( $user_id, $reset_url, $needs_password_setup );
+		Emails\send_welcome_email( $user_id, $reset_url, $needs_password_setup, $meta );
 	}
 
 	/**
@@ -265,22 +261,49 @@ function filter_block_visibility( string $block_content, array $parsed_block ): 
 		return $block_content;
 	}
 
+	$variation = $parsed_block['attrs']['metadata']['variationName'] ?? '';
+
+	// The resend block works on any page, so its confirmation is gated everywhere.
+	if ( $variation === 'hm-user-activation/resent' && ( ! Resend\was_resent() || is_success() || is_error() ) ) {
+		return '';
+	}
+
 	$page_id = (int) get_option( 'hm_activation_page_id' );
 	if ( ! $page_id || (int) get_queried_object_id() !== $page_id ) {
 		return $block_content;
 	}
 
-	$variation = $parsed_block['attrs']['metadata']['variationName'] ?? '';
-
 	if ( $variation === 'hm-user-activation/errors' && ! is_error() ) {
 		return '';
 	}
 
-	if ( $variation === 'hm-user-activation/resent' && ! Resend\was_resent() ) {
+	if ( $variation === 'hm-user-activation/success' && ! is_success() ) {
 		return '';
 	}
 
-	if ( $variation === 'hm-user-activation/success' && ! is_success() ) {
+	return $block_content;
+}
+
+/**
+ * After a successful activation, hide buttons whose bound URL is empty,
+ * for example a "Set your password" button when no reset link was generated.
+ *
+ * @param string $block_content Rendered block HTML.
+ * @param array  $parsed_block  Parsed block data.
+ * @return string
+ */
+function filter_empty_url_buttons( string $block_content, array $parsed_block ): string {
+	if ( $parsed_block['blockName'] !== 'core/button' || ! is_success() ) {
+		return $block_content;
+	}
+
+	$source = $parsed_block['attrs']['metadata']['bindings']['url']['source'] ?? '';
+
+	if ( $source === 'hm-user-activation/reset-url' && ! get_reset_url() ) {
+		return '';
+	}
+
+	if ( $source === 'hm-user-activation/login-url' && ! get_login_url() ) {
 		return '';
 	}
 

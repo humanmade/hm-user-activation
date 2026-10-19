@@ -175,6 +175,20 @@
 							},
 						},
 					],
+					[
+						'core/button',
+						{
+							text: __( 'Log in', 'hm-user-activation' ),
+							className: 'is-style-outline',
+							metadata: {
+								bindings: {
+									url: {
+										source: 'hm-user-activation/login-url',
+									},
+								},
+							},
+						},
+					],
 				],
 			],
 		],

@@ -57,8 +57,8 @@ function create_password_reset_page(): void {
  *
  * Resent group: confirmation shown after a new link was requested.
  *
- * Success group: shows username + a "Set your password" button bound to the
- * pre-generated reset URL stored in the activation result.
+ * Success group: shows username, a "Set your password" button bound to the
+ * pre-generated reset URL (dropped when there is none) and a "Log in" button.
  */
 function default_activation_page_content(): string {
 	return <<<'BLOCKS'
@@ -94,6 +94,10 @@ function default_activation_page_content(): string {
 <!-- wp:buttons -->
 <div class="wp-block-buttons"><!-- wp:button {"metadata":{"bindings":{"url":{"source":"hm-user-activation/reset-url"}}}} -->
 <div class="wp-block-button"><a class="wp-block-button__link wp-element-button">Set your password</a></div>
+<!-- /wp:button -->
+
+<!-- wp:button {"className":"is-style-outline","metadata":{"bindings":{"url":{"source":"hm-user-activation/login-url"}}}} -->
+<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button">Log in</a></div>
 <!-- /wp:button --></div>
 <!-- /wp:buttons --></div>
 <!-- /wp:group -->
