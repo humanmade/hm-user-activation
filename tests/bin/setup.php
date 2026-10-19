@@ -9,6 +9,10 @@
 
 use HM\UserActivation\PageSetup;
 
+if ( ! defined( 'WP_CLI' ) ) {
+	exit;
+}
+
 if ( ! is_multisite() ) {
 	WP_CLI::error( 'Multisite is not enabled.' );
 }
@@ -29,7 +33,9 @@ RewriteRule ^([_0-9a-zA-Z-]+/)?(.*\.php)$ $2 [L]
 RewriteRule . index.php [L]
 HTACCESS;
 
-file_put_contents( ABSPATH . '.htaccess', $rules . "\n" );
+if ( false === file_put_contents( ABSPATH . '.htaccess', $rules . "\n" ) ) {
+	WP_CLI::error( 'Could not write ' . ABSPATH . '.htaccess.' );
+}
 
 global $wp_rewrite;
 $wp_rewrite->set_permalink_structure( '/%postname%/' );

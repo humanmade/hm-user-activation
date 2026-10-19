@@ -1,7 +1,7 @@
 {
 	"core": "WordPress/WordPress#7.1",
 	"plugins": [],
-	"themes": [ "WordPress/twentytwentyfive" ],
+	"themes": [],
 	"mappings": {
 		"wp-content/plugins/hm-user-activation": ".",
 		"wp-content/mu-plugins": "./tests/mu-plugins"

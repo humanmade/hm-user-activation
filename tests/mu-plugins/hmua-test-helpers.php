@@ -10,6 +10,8 @@
 
 namespace HM\UserActivation\Tests;
 
+defined( 'ABSPATH' ) || exit;
+
 if ( ! defined( 'HMUA_TESTS' ) || ! HMUA_TESTS ) {
 	return;
 }
