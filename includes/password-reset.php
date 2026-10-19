@@ -84,8 +84,13 @@ function maybe_process(): void {
 			return;
 		}
 
-		$pass1 = wp_unslash( $_POST['pass1'] ?? '' ); // phpcs:ignore HM.Security.ValidatedSanitizedInput.InputNotSanitized -- Passwords must not be altered by sanitising
-		$pass2 = wp_unslash( $_POST['pass2'] ?? '' ); // phpcs:ignore HM.Security.ValidatedSanitizedInput.InputNotSanitized -- Passwords must not be altered by sanitising
+		// Left slashed, as wp-login.php does. Core hashes passwords with the
+		// request's slashes intact and wp_signon() checks them that way, so an
+		// unslashed password containing a quote or backslash could never log in.
+		// phpcs:disable HM.Security.ValidatedSanitizedInput, WordPress.Security.ValidatedSanitizedInput
+		$pass1 = is_string( $_POST['pass1'] ?? null ) ? $_POST['pass1'] : '';
+		$pass2 = is_string( $_POST['pass2'] ?? null ) ? $_POST['pass2'] : '';
+		// phpcs:enable HM.Security.ValidatedSanitizedInput, WordPress.Security.ValidatedSanitizedInput
 
 		process_password_change( $pending['key'], $pending['login'], $pass1, $pass2 );
 		return;
@@ -224,28 +229,11 @@ function process_reset_request( string $email_or_login ): void {
 
 /**
  * Validate a reset key and update the user's password.
+ *
+ * Runs the same checks and hooks as wp-login.php's resetpass action, so
+ * password policy plugins can reject a password here as they do there.
  */
 function process_password_change( string $key, string $login, string $pass1, string $pass2 ): void {
-	if ( ! $pass1 ) {
-		result( [
-			'success'       => false,
-			'mode'          => 'reset',
-			'error_code'    => 'empty_password',
-			'error_message' => __( 'Please enter a new password.', 'hm-user-activation' ),
-		] );
-		return;
-	}
-
-	if ( $pass1 !== $pass2 ) {
-		result( [
-			'success'       => false,
-			'mode'          => 'reset',
-			'error_code'    => 'password_mismatch',
-			'error_message' => __( 'Passwords do not match. Please try again.', 'hm-user-activation' ),
-		] );
-		return;
-	}
-
 	$user = check_password_reset_key( $key, $login );
 
 	if ( is_wp_error( $user ) ) {
@@ -259,14 +247,31 @@ function process_password_change( string $key, string $login, string $pass1, str
 		return;
 	}
 
-	// Give password policy plugins their say, as wp-login.php does.
+	/**
+	 * Fires before the new password is checked, as when a password is changed
+	 * on the profile screen. Both values are passed by reference.
+	 *
+	 * @param string $user_login The user's login.
+	 * @param string $pass1      The new password.
+	 * @param string $pass2      The confirmed password.
+	 */
+	do_action_ref_array( 'check_passwords', [ $user->user_login, &$pass1, &$pass2 ] );
+
 	$errors = new \WP_Error();
+	$pass1  = trim( $pass1 );
+
+	if ( $pass1 === '' ) {
+		$errors->add( 'empty_password', __( 'Please enter a new password. It cannot be only spaces.', 'hm-user-activation' ) );
+	} elseif ( trim( $pass2 ) !== $pass1 ) {
+		$errors->add( 'password_mismatch', __( 'Passwords do not match. Please try again.', 'hm-user-activation' ) );
+	}
 
 	/**
-	 * Fires before the new password is stored.
+	 * Fires before the new password is stored, so password policy plugins can
+	 * add errors. Matches wp-login.php.
 	 *
-	 * @param \WP_Error         $errors Error collector.
-	 * @param \WP_User|\WP_Error $user   The user resetting their password.
+	 * @param \WP_Error $errors Error collector, with any errors found above.
+	 * @param \WP_User  $user   The user resetting their password.
 	 */
 	do_action( 'validate_password_reset', $errors, $user );
 
@@ -280,8 +285,9 @@ function process_password_change( string $key, string $login, string $pass1, str
 		return;
 	}
 
-	// reset_password() clears the reset key and destroys the user's existing
-	// sessions, so a stolen cookie cannot outlive the password change.
+	// The new password changes the hash that auth cookies are signed with, so
+	// cookies issued before the reset stop working. reset_password() also
+	// clears the reset key.
 	reset_password( $user, $pass1 );
 
 	// The key is spent — remove it so the form cannot be resubmitted.
