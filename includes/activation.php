@@ -150,18 +150,29 @@ function process( string $key, bool $auto_login ): void {
 
 	$meta = (array) ( $activation['meta'] ?? [] );
 
+	// Core activates with a generated password. If the stored hash no longer matches it, something has set a real one.
+	$needs_password_setup = ! $user
+		|| empty( $activation['password'] )
+		|| wp_check_password( $activation['password'], $user->user_pass, $user_id );
+
 	/**
 	 * Filters whether the new user needs to set a password.
 	 *
-	 * Return false when the site handles passwords itself, for example when
-	 * the user chose one at registration. No password reset key or URL is
-	 * generated in that case.
+	 * The default is true while the user still has the password generated
+	 * during activation, and false once something else has set one, for
+	 * example a hook on wpmu_activate_user. No password reset key or URL is
+	 * generated when this is false.
 	 *
-	 * @param bool  $needs   Whether to generate a password reset link. Default true.
+	 * Returning false for a user who only has the generated password leaves
+	 * them unable to log in until they use "lost password". Returning true
+	 * for a user who already has a password just sends them through a
+	 * harmless reset.
+	 *
+	 * @param bool  $needs   Whether to generate a password reset link.
 	 * @param int   $user_id Activated user ID.
 	 * @param array $meta    Signup meta.
 	 */
-	$needs_password_setup = (bool) apply_filters( 'hm_user_activation_needs_password_setup', true, $user_id, $meta );
+	$needs_password_setup = (bool) apply_filters( 'hm_user_activation_needs_password_setup', $needs_password_setup, $user_id, $meta );
 
 	// Generate a password reset key so the user can set their own password.
 	$reset_url = '';
