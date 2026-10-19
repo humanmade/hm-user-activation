@@ -385,7 +385,7 @@ function field_registration_page_select( array $args ): void {
 		'name'              => 'hm_activation_registration_page_id',
 		'id'                => 'hm_activation_registration_page_id',
 		'post_status'       => [ 'publish', 'draft' ],
-		'selected'          => $value,
+		'selected'          => $value, // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- $value is cast to int
 		'show_option_none'  => __( '— Select a page —', 'hm-user-activation' ),
 		'option_none_value' => '0',
 	] );
