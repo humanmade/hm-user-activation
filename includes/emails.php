@@ -282,7 +282,7 @@ function replace( string $text, array $placeholders ): string {
 	// template such as "https://example.com/?u={reset_link}" would send the key
 	// to that host when clicked. A space keeps the two apart.
 	foreach ( KEY_LINK_PLACEHOLDERS as $token ) {
-		$text = (string) preg_replace( '/(?<=\S)' . preg_quote( $token, '/' ) . '/', ' ' . $token, $text );
+		$text = (string) preg_replace( '/(?<=[^ \t\r\n])' . preg_quote( $token, '/' ) . '/', ' ' . $token, $text );
 	}
 
 	// One pass, so a value that contains or completes a placeholder, such as a
