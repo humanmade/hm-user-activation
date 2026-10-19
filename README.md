@@ -10,7 +10,7 @@ Replaces WordPress Multisite's default `wp-signup.php` and `wp-activate.php` flo
 
 ## Features
 
-**Site-level registration page** — registration happens on your own site instead of the network's `wp-signup.php`. Signups are created with core's multisite functions (`wpmu_validate_user_signup()` and `wpmu_signup_user()`), so all the usual validation — reserved and illegal names, banned email domains, existing users, pending signups — still applies. Core's `wpmu_active_signup` filter is honoured too.
+**Site-level registration page** — registration happens on your own site instead of the network's `wp-signup.php`. Signups are created with core's multisite functions (`wpmu_validate_user_signup()` and `wpmu_signup_user()`), so all the usual validation — reserved and illegal names, banned email domains, existing users, pending signups — still applies. Core's `wpmu_active_signup` filter and the `signup_extra_fields` action are honoured too, so CAPTCHA and anti-spam plugins that hook into the network signup form also work here. Like `wp-signup.php`, the form tells visitors when a username or email address is already taken.
 
 Once the page is published, `wp_registration_url()` and the `wp-login.php?action=register` link point at it for logged-out visitors. When the network allows user accounts only, requests to `wp-signup.php` are redirected there too. This needs the plugin to be active on the network's main site, because `wp-signup.php` always runs on the main site. When the network also allows sites, `wp-signup.php` stays with core so people can still sign up for a site, and logged-in users keep the "Add New Site" link in My Sites.
 

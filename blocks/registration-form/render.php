@@ -38,6 +38,12 @@ if ( ! Registration\is_registration_enabled() ) {
 
 $name_error  = Registration\get_field_error( 'user_name' );
 $email_error = Registration\get_field_error( 'user_email' );
+
+// Core's messages can include <strong> and a log in link.
+$error_html = [
+	'strong' => [],
+	'a'      => [ 'href' => [] ],
+];
 ?>
 <div <?php echo $wrapper_attributes; // phpcs:ignore WordPress.Security.EscapeOutput -- Escaped by get_block_wrapper_attributes(). ?>>
 	<form method="post" action="" class="hm-registration-form__form">
@@ -58,7 +64,7 @@ $email_error = Registration\get_field_error( 'user_email' );
 				<?php echo $name_error ? ' aria-describedby="hm-user-name-error" aria-invalid="true"' : ''; ?>
 			>
 			<?php if ( $name_error ) : ?>
-				<span class="hm-registration-form__error" id="hm-user-name-error"><?php echo esc_html( $name_error ); ?></span>
+				<span class="hm-registration-form__error" id="hm-user-name-error"><?php echo wp_kses( $name_error, $error_html ); ?></span>
 			<?php endif; ?>
 		</p>
 
@@ -77,9 +83,14 @@ $email_error = Registration\get_field_error( 'user_email' );
 				<?php echo $email_error ? ' aria-describedby="hm-user-email-error" aria-invalid="true"' : ''; ?>
 			>
 			<?php if ( $email_error ) : ?>
-				<span class="hm-registration-form__error" id="hm-user-email-error"><?php echo esc_html( $email_error ); ?></span>
+				<span class="hm-registration-form__error" id="hm-user-email-error"><?php echo wp_kses( $email_error, $error_html ); ?></span>
 			<?php endif; ?>
 		</p>
+
+		<?php
+		/** This action is documented in wp-signup.php */
+		do_action( 'signup_extra_fields', Registration\get_errors() );
+		?>
 
 		<?php if ( $show_email_notice ) : ?>
 			<p class="hm-registration-form__notice">

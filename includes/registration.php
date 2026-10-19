@@ -88,10 +88,17 @@ function maybe_process(): void {
 		return;
 	}
 
-	$user_name  = sanitize_text_field( wp_unslash( $_POST['user_name'] ?? '' ) );
-	$user_email = sanitize_text_field( wp_unslash( $_POST['user_email'] ?? '' ) );
+	// Passed through unsanitised so wpmu_validate_user_signup() rejects input
+	// that sanitising would change, rather than accepting a different value.
+	// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+	$user_name  = wp_unslash( $_POST['user_name'] ?? '' );
+	$user_email = wp_unslash( $_POST['user_email'] ?? '' );
+	// phpcs:enable
 
-	process( $user_name, $user_email );
+	process(
+		is_string( $user_name ) ? $user_name : '',
+		is_string( $user_email ) ? $user_email : ''
+	);
 }
 
 /**
@@ -144,6 +151,7 @@ function process( string $user_name, string $user_email ): void {
 			'success'       => false,
 			'error_code'    => $errors->get_error_code(),
 			'error_message' => implode( ' ', array_values( $field_errors ) ),
+			'errors'        => $errors,
 			'field_errors'  => $field_errors,
 			'user_name'     => $user_name,
 			'user_email'    => $user_email,
@@ -298,8 +306,8 @@ function login_url(): string {
 // -------------------------------------------------------------------------
 
 /**
- * @param array{success: bool, user_name?: string, user_email?: string, error_code?: string, error_message?: string, field_errors?: array<string,string>}|null $value
- * @return array{success: bool, user_name?: string, user_email?: string, error_code?: string, error_message?: string, field_errors?: array<string,string>}|null
+ * @param array{success: bool, user_name?: string, user_email?: string, error_code?: string, error_message?: string, errors?: \WP_Error, field_errors?: array<string,string>}|null $value
+ * @return array{success: bool, user_name?: string, user_email?: string, error_code?: string, error_message?: string, errors?: \WP_Error, field_errors?: array<string,string>}|null
  */
 function result( ?array $value = null ): ?array {
 	static $result = null;
@@ -335,6 +343,15 @@ function get_field_error( string $field ): string {
 	}
 
 	return result()['field_errors'][ $field ] ?? '';
+}
+
+/**
+ * Validation errors from the last submission, for the signup_extra_fields action.
+ */
+function get_errors(): \WP_Error {
+	$errors = result()['errors'] ?? null;
+
+	return $errors instanceof \WP_Error ? $errors : new \WP_Error();
 }
 
 /**
