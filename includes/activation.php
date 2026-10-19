@@ -178,14 +178,6 @@ function process( string $key, bool $auto_login ): void {
 	$user_id = (int) $activation['user_id'];
 	$user    = get_user_by( 'id', $user_id );
 
-	if ( $auto_login && $user ) {
-		wp_set_current_user( $user_id );
-		wp_set_auth_cookie( $user_id );
-
-		// Let security, audit and two-factor plugins see the login.
-		do_action( 'wp_login', $user->user_login, $user );
-	}
-
 	$meta = (array) ( $activation['meta'] ?? [] );
 	unset( $meta[ Resend\META_KEY ] );
 
@@ -261,6 +253,18 @@ function process( string $key, bool $auto_login ): void {
 	 * @param array $meta    Signup meta.
 	 */
 	do_action( 'hm_user_activation_activated', $user_id, $meta );
+
+	// Log in last, so a wp_login handler that exits (two-factor plugins do)
+	// cannot stop the welcome email. Never replace a session that is already
+	// open: following someone else's activation link must not sign the visitor
+	// out of their own account and into that one.
+	if ( $auto_login && $user && ! is_user_logged_in() ) {
+		wp_set_current_user( $user_id );
+		wp_set_auth_cookie( $user_id );
+
+		// Let security, audit and two-factor plugins see the login.
+		do_action( 'wp_login', $user->user_login, $user );
+	}
 }
 
 /**
