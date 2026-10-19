@@ -385,7 +385,7 @@ function field_login_page_select( array $args ): void {
 
 	printf(
 		'<p class="description">%s</p>',
-		wp_kses( __( 'Used as the <code>{login_url}</code> placeholder in the welcome email. Defaults to the WordPress login URL if none selected.', 'hm-user-activation' ), [ 'code' => [] ] )
+		wp_kses( __( 'Used for the <code>{login_url}</code> placeholder in the welcome email, the Activation: Login URL binding and the default Log in button. Defaults to the WordPress login URL if none selected.', 'hm-user-activation' ), [ 'code' => [] ] )
 	);
 }
 

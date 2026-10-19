@@ -99,8 +99,9 @@ function resend( string $email ): bool {
 			'registered'     => current_time( 'mysql', true ),
 		],
 		[
-			'signup_id' => $signup->signup_id,
-			'active'    => 0,
+			'signup_id'  => $signup->signup_id,
+			'active'     => 0,
+			'registered' => $signup->registered,
 		]
 	);
 
@@ -108,7 +109,7 @@ function resend( string $email ): bool {
 		return false;
 	}
 
-	Emails\send_activation_email( $signup->user_email, $key, $signup->user_login);
+	Emails\send_activation_email( $signup->user_email, $key, $signup->user_login );
 
 	return true;
 }
