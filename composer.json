@@ -12,9 +12,16 @@
     "require": {
         "composer/installers": "^1 || ^2"
     },
+    "require-dev": {
+        "humanmade/coding-standards": "^2.3"
+    },
+    "scripts": {
+        "lint": "phpcs"
+    },
     "config": {
         "allow-plugins": {
-            "composer/installers": true
+            "composer/installers": true,
+            "dealerdirect/phpcodesniffer-composer-installer": true
         }
     }
 }
