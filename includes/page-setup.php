@@ -132,6 +132,11 @@ BLOCKS;
  * The registration block renders the username/email form, hiding itself once a
  * signup has been created. The two group variants show feedback for each
  * outcome and are hidden by default via PHP render_block filtering.
+ *
+ * Error group: also holds the resend form, for someone whose earlier signup
+ * is still pending but whose activation link has expired or gone missing.
+ *
+ * Resent group: confirmation shown after a new link was requested.
  */
 function default_registration_page_content(): string {
 	return <<<'BLOCKS'
@@ -144,6 +149,18 @@ function default_registration_page_content(): string {
 <!-- wp:group {"metadata":{"variationName":"hm-user-activation/registration-errors"},"className":"hm-registration-errors","style":{"border":{"radius":"4px"},"spacing":{"padding":{"top":"1rem","right":"1rem","bottom":"1rem","left":"1rem"}}}} -->
 <div class="wp-block-group hm-registration-errors"><!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"hm-user-activation/registration-error-message"}}}} -->
 <p></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Already registered but can't find the activation email, or the link has expired? Ask for a new one.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:hm-user-activation/resend-form /--></div>
+<!-- /wp:group -->
+
+<!-- wp:group {"metadata":{"variationName":"hm-user-activation/resent"},"className":"hm-activation-resent","style":{"border":{"radius":"4px"},"spacing":{"padding":{"top":"1rem","right":"1rem","bottom":"1rem","left":"1rem"}}}} -->
+<div class="wp-block-group hm-activation-resent"><!-- wp:paragraph -->
+<p>If there's a pending registration for that address, we've sent a new activation link.</p>
 <!-- /wp:paragraph --></div>
 <!-- /wp:group -->
 
