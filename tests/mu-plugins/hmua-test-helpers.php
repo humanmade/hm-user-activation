@@ -75,6 +75,97 @@ add_action(
 	2
 );
 
+/**
+ * The JSON object in a test cookie, or an empty array.
+ *
+ * Cookies are read raw while mu-plugins load and slashed afterwards, so both
+ * forms are tried.
+ *
+ * @param string $name Cookie name.
+ * @return array
+ */
+function cookie_json( string $name ): array {
+	$raw = (string) ( $_COOKIE[ $name ] ?? '' );
+
+	foreach ( [ $raw, stripslashes( $raw ) ] as $candidate ) {
+		$data = json_decode( $candidate, true );
+
+		if ( is_array( $data ) ) {
+			return $data;
+		}
+	}
+
+	return [];
+}
+
+/**
+ * Per-request overrides for the plugin's options, from the
+ * `hmua_test_options` cookie. A test can change a setting for its own browser
+ * without affecting tests running in parallel.
+ */
+foreach ( cookie_json( 'hmua_test_options' ) as $hmua_option => $hmua_value ) {
+	if ( strpos( (string) $hmua_option, 'hm_activation_' ) !== 0 ) {
+		continue;
+	}
+
+	add_filter(
+		'pre_option_' . $hmua_option,
+		static function () use ( $hmua_value ) {
+			return (string) $hmua_value;
+		}
+	);
+}
+unset( $hmua_option, $hmua_value );
+
+/**
+ * A stand-in password policy plugin: with the `hmua_test_min_password`
+ * cookie set, reject shorter passwords. Like real policy plugins it reads the
+ * password from $_POST, because validate_password_reset is not given it.
+ */
+add_action(
+	'validate_password_reset',
+	static function ( \WP_Error $errors ): void {
+		$min = (int) ( $_COOKIE['hmua_test_min_password'] ?? 0 );
+
+		if ( $min && strlen( wp_unslash( (string) ( $_POST['pass1'] ?? '' ) ) ) < $min ) {
+			$errors->add( 'hmua_test_policy', sprintf( 'Test policy: use at least %d characters.', $min ) );
+		}
+	}
+);
+
+/**
+ * Mark core's form hooks so specs can tell they fired.
+ */
+add_action(
+	'lostpassword_form',
+	static function (): void {
+		echo '<input type="hidden" name="hmua_test_hook" value="lostpassword_form">';
+	}
+);
+
+add_action(
+	'resetpass_form',
+	static function ( $user ): void {
+		printf(
+			'<input type="hidden" name="hmua_test_hook" value="resetpass_form:%s">',
+			esc_attr( $user instanceof \WP_User ? $user->user_login : '' )
+		);
+	}
+);
+
+/**
+ * A stand-in captcha: with the `hmua_test_block_reset` cookie set, refuse
+ * every reset request.
+ */
+add_action(
+	'lostpassword_post',
+	static function ( \WP_Error $errors ): void {
+		if ( ! empty( $_COOKIE['hmua_test_block_reset'] ) ) {
+			$errors->add( 'hmua_test_blocked', 'Test hook: this request was blocked.' );
+		}
+	}
+);
+
 add_action(
 	'rest_api_init',
 	static function () {

@@ -39,6 +39,11 @@ test.describe( 'Activation', () => {
 			email.links.find( ( url ) => url.includes( 'key=' ) )
 		);
 
+		// The key is moved out of the URL.
+		const landed = new URL( page.url() );
+		expect( landed.searchParams.has( 'key' ) ).toBe( false );
+		expect( landed.pathname ).toBe( '/activate-your-account/' );
+
 		await expect(
 			page.getByText( 'Your account has been successfully activated.' )
 		).toBeVisible();
@@ -171,6 +176,42 @@ test.describe( 'Activation', () => {
 		).toHaveCount( 0 );
 	} );
 
+	test( 'reloading after activation shows the key form, not the account again', async ( {
+		page,
+		hmua,
+	} ) => {
+		const signup = await hmua.createSignup();
+
+		await page.goto( `/activate-your-account/?key=${ signup.key }` );
+		await expect(
+			page.getByText( 'Your account has been successfully activated.' )
+		).toBeVisible();
+
+		await page.reload();
+
+		await expect(
+			page.getByText( 'Your account has been successfully activated.' )
+		).toHaveCount( 0 );
+		await expect( page.getByLabel( 'Activation key' ) ).toBeVisible();
+		await expect( page.locator( '.hm-activation-errors' ) ).toHaveCount(
+			0
+		);
+	} );
+
+	test( 'reloading after an invalid key does not repeat the error', async ( {
+		page,
+	} ) => {
+		await page.goto( '/activate-your-account/?key=not-a-real-key' );
+		await expect( page.locator( '.hm-activation-errors' ) ).toBeVisible();
+
+		await page.reload();
+
+		await expect( page.locator( '.hm-activation-errors' ) ).toHaveCount(
+			0
+		);
+		await expect( page.getByLabel( 'Activation key' ) ).toBeVisible();
+	} );
+
 	test( 'a key that was already used shows an error', async ( {
 		page,
 		hmua,
@@ -258,43 +299,153 @@ test.describe( 'Activation', () => {
 		);
 	} );
 
-	test.fixme(
-		'wp-activate.php redirects to the activation page keeping the key',
-		async ( { page, hmua } ) => {
-			// Currently a fatal error: get_permalink() runs on plugins_loaded
-			// before $wp_rewrite exists, so wp-activate.php returns a 500.
-			const signup = await hmua.createSignup();
+	test( 'wp-activate.php redirects to the activation page and activates', async ( {
+		page,
+		hmua,
+	} ) => {
+		const signup = await hmua.createSignup();
 
-			await page.goto( `/wp-activate.php?key=${ signup.key }` );
+		await page.goto( `/wp-activate.php?key=${ signup.key }` );
 
-			await expect( page ).toHaveURL(
-				new RegExp( `/activate-your-account/\\?key=${ signup.key }$` )
-			);
-			await expect(
-				page.getByText( 'Your account has been successfully activated.' )
-			).toBeVisible();
+		await expect( page ).toHaveURL( /\/activate-your-account\/$/ );
+		await expect(
+			page.getByText( 'Your account has been successfully activated.' )
+		).toBeVisible();
+		expect( ( await hmua.getUser( signup.login ) ).exists ).toBe( true );
+	} );
+
+	test( 'activation does not email the new password in plain text', async ( {
+		page,
+		hmua,
+	} ) => {
+		const signup = await hmua.createSignup();
+
+		await page.goto( `/activate-your-account/?key=${ signup.key }` );
+		await expect(
+			page.getByText( 'Your account has been successfully activated.' )
+		).toBeVisible();
+		await hmua.mail.waitFor( signup.email, {
+			subject: /your account is active/,
+		} );
+
+		const emails = await hmua.mail.all( signup.email );
+		for ( const email of emails ) {
+			expect( email.message ).not.toMatch( /^Password:/m );
 		}
+	} );
+} );
+
+/**
+ * The username of the WordPress login cookie in a browser context.
+ *
+ * @param {import('@playwright/test').BrowserContext} context Browser context.
+ * @return {Promise<string|null>} Username, or null when not logged in.
+ */
+async function loggedInAs( context ) {
+	const cookie = ( await context.cookies() ).find( ( { name } ) =>
+		name.startsWith( 'wordpress_logged_in_' )
 	);
 
-	test.fixme(
-		'activation does not email the new password in plain text',
-		async ( { page, hmua } ) => {
-			// Currently WordPress core's own welcome email still goes out
-			// alongside the plugin's one, and it contains the password.
+	return cookie ? decodeURIComponent( cookie.value ).split( '|' )[ 0 ] : null;
+}
+
+test.describe( 'Auto-login', () => {
+	test( 'a visitor who follows the activation link is logged in as the new user', async ( {
+		page,
+		hmua,
+	} ) => {
+		await hmua.useOptions( page.context(), { hm_activation_auto_login: 1 } );
+		const signup = await hmua.createSignup();
+
+		await page.goto( `/activate-your-account/?key=${ signup.key }` );
+
+		await expect(
+			page.getByText( 'Your account has been successfully activated.' )
+		).toBeVisible();
+		expect( await loggedInAs( page.context() ) ).toBe( signup.login );
+	} );
+
+	test.describe( 'when already logged in', () => {
+		test.use( { storageState: '.auth/wordpress.json' } );
+
+		test( 'the visitor stays logged in as themselves and the account is activated', async ( {
+			page,
+			hmua,
+		} ) => {
+			await hmua.useOptions( page.context(), {
+				hm_activation_auto_login: 1,
+			} );
 			const signup = await hmua.createSignup();
 
 			await page.goto( `/activate-your-account/?key=${ signup.key }` );
+
 			await expect(
 				page.getByText( 'Your account has been successfully activated.' )
 			).toBeVisible();
-			await hmua.mail.waitFor( signup.email, {
-				subject: /your account is active/,
-			} );
+			expect( await loggedInAs( page.context() ) ).toBe(
+				process.env.WP_USERNAME || 'admin'
+			);
+			expect( ( await hmua.getUser( signup.login ) ).exists ).toBe( true );
+		} );
+	} );
+} );
 
-			const emails = await hmua.mail.all( signup.email );
-			for ( const email of emails ) {
-				expect( email.message ).not.toMatch( /^Password:/m );
-			}
-		}
-	);
+test.describe( 'Email templates', () => {
+	test( 'a key link is kept apart from template text before it', async ( {
+		page,
+		hmua,
+	} ) => {
+		await hmua.useOptions( page.context(), {
+			hm_activation_welcome_email_body:
+				'Set it here: https://attacker.example/?u={password_reset_link}',
+		} );
+		const signup = await hmua.createSignup();
+
+		await page.goto( `/activate-your-account/?key=${ signup.key }` );
+		await expect(
+			page.getByText( 'Your account has been successfully activated.' )
+		).toBeVisible();
+
+		const welcome = await hmua.mail.waitFor( signup.email, {
+			subject: /your account is active/,
+		} );
+
+		expect( welcome.message ).toContain( 'https://attacker.example/?u= http' );
+		expect(
+			welcome.links.some(
+				( url ) =>
+					url.includes( 'reset-your-password' ) && url.includes( 'key=' )
+			)
+		).toBe( true );
+		expect(
+			welcome.links.some( ( url ) =>
+				url.startsWith( 'https://attacker.example/?u=http' )
+			)
+		).toBe( false );
+	} );
+
+	test( 'a placeholder cannot be built from another value', async ( {
+		page,
+		hmua,
+	} ) => {
+		await hmua.useOptions( page.context(), {
+			hm_activation_welcome_email_body:
+				'https://attacker.example/?u={password_reset_li{first_name}nk}',
+		} );
+		const signup = await hmua.createSignup();
+
+		await page.goto( `/activate-your-account/?key=${ signup.key }` );
+		await expect(
+			page.getByText( 'Your account has been successfully activated.' )
+		).toBeVisible();
+
+		const welcome = await hmua.mail.waitFor( signup.email, {
+			subject: /your account is active/,
+		} );
+
+		expect( welcome.message ).toContain( '{password_reset_link}' );
+		expect(
+			welcome.links.some( ( url ) => url.includes( 'reset-your-password' ) )
+		).toBe( false );
+	} );
 } );

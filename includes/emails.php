@@ -6,6 +6,7 @@
 namespace HM\UserActivation\Emails;
 
 use HM\UserActivation\PasswordReset;
+use HM\UserActivation\Security;
 
 function bootstrap(): void {
 	// Replace the default user-signup activation email.
@@ -13,6 +14,80 @@ function bootstrap(): void {
 
 	// Replace the default blog-signup activation email.
 	add_filter( 'wpmu_signup_blog_notification', __NAMESPACE__ . '\\intercept_blog_notification', 10, 7 );
+
+	// Suppress the network's own post-activation welcome email.
+	add_filter( 'wpmu_welcome_user_notification', __NAMESPACE__ . '\\suppress_network_welcome_email', 10, 3 );
+
+	// Keep the generated password out of the new site welcome email.
+	add_filter( 'update_welcome_email', __NAMESPACE__ . '\\redact_site_welcome_password', 10, 4 );
+}
+
+/**
+ * Link placeholders whose URL carries a single-use key.
+ */
+const KEY_LINK_PLACEHOLDERS = [
+	'{activation_link}',
+	'{password_reset_link}',
+	'{reset_link}',
+];
+
+/**
+ * Stop wpmu_welcome_user_notification() sending the network's welcome email.
+ *
+ * When an account is activated, core generates a random password and passes it
+ * to that function, which puts it into the network's welcome_user_email
+ * template. Core's default template has a PASSWORD line, so the password is
+ * emailed in plain text.
+ *
+ * This plugin sends its own welcome email containing a one-time reset link
+ * instead, so the network's copy is both redundant and a disclosure risk. The
+ * user never needs the generated password: it stays unknown to everyone and is
+ * replaced the moment they follow the reset link.
+ *
+ * @param int    $user_id  The new user's ID.
+ * @param string $password The generated password. Deliberately unused.
+ * @param array  $meta     Signup meta.
+ * @return int|false The original value to let the email through, false to stop it.
+ */
+function suppress_network_welcome_email( $user_id, $password, $meta ) {
+	/**
+	 * Filter whether to suppress the network's welcome email.
+	 *
+	 * Only disable this if the network template is known to be free of the
+	 * PASSWORD token and the duplicate email is wanted.
+	 *
+	 * @param bool $suppress Whether to suppress the network welcome email.
+	 * @param int  $user_id  The new user's ID.
+	 */
+	$suppress = (bool) apply_filters( 'hm_user_activation_suppress_network_welcome_email', true, $user_id );
+
+	return $suppress ? false : $user_id;
+}
+
+/**
+ * Remove the generated password from the welcome email for a new site.
+ *
+ * Activating a site signup sends wpmu_welcome_notification(), whose default
+ * template has a PASSWORD line. That email is the only one that confirms the
+ * new site and its address, so it is kept and only the password is replaced
+ * with a pointer to the reset page.
+ *
+ * @param string $welcome_email Email body, with placeholders already replaced.
+ * @param int    $blog_id       New site ID.
+ * @param int    $user_id       User ID.
+ * @param string $password      The generated password.
+ * @return string
+ */
+function redact_site_welcome_password( $welcome_email, $blog_id, $user_id, $password ) {
+	// Core passes "N/A" when a super admin creates a site for an existing user.
+	if ( ! is_string( $welcome_email ) || ! is_string( $password ) || $password === '' || $password === 'N/A' ) {
+		return $welcome_email;
+	}
+
+	/* translators: %s: password reset page URL */
+	$notice = sprintf( __( 'Not sent by email. Set one at: %s', 'hm-user-activation' ), wp_lostpassword_url() );
+
+	return str_replace( $password, $notice, $welcome_email );
 }
 
 /**
@@ -58,7 +133,7 @@ function send_activation_email( string $user_email, string $key, string $usernam
 
 	wp_mail(
 		$user_email,
-		wp_specialchars_decode( replace( $subject, $placeholders ) ),
+		build_subject( $subject, $placeholders ),
 		replace( $body, $placeholders ),
 		build_headers()
 	);
@@ -117,7 +192,7 @@ function send_welcome_email( int $user_id, string $reset_url = '', bool $passwor
 
 	wp_mail(
 		$user->user_email,
-		wp_specialchars_decode( replace( $subject, $placeholders ) ),
+		build_subject( $subject, $placeholders ),
 		replace( $body, $placeholders ),
 		build_headers()
 	);
@@ -139,7 +214,7 @@ function send_password_reset_email( \WP_User $user, string $key ): void {
 
 	wp_mail(
 		$user->user_email,
-		wp_specialchars_decode( replace( $subject, $placeholders ) ),
+		build_subject( $subject, $placeholders ),
 		replace( $body, $placeholders ),
 		build_headers()
 	);
@@ -153,14 +228,24 @@ function send_password_reset_email( \WP_User $user, string $key ): void {
  * Global from name, falling back to the site name.
  */
 function from_name(): string {
-	return (string) ( get_option( 'hm_activation_from_name' ) ?: get_bloginfo( 'name' ) );
+	$name = (string) ( get_option( 'hm_activation_from_name' ) ?: get_bloginfo( 'name' ) );
+
+	// Editable option going into a mail header: newlines would let further
+	// headers be injected, and quotes would break out of the display name.
+	return str_replace( '"', '', Security\sanitize_header_value( $name ) );
 }
 
 /**
  * Global from email, falling back to the admin email.
  */
 function from_email(): string {
-	return (string) ( get_option( 'hm_activation_from_email' ) ?: get_option( 'admin_email' ) );
+	$email = Security\sanitize_header_value( (string) get_option( 'hm_activation_from_email' ) );
+
+	if ( ! is_email( $email ) ) {
+		$email = (string) get_option( 'admin_email' );
+	}
+
+	return $email;
 }
 
 /**
@@ -190,7 +275,17 @@ function build_placeholders( array $extra = [] ): array {
  * @return string
  */
 function replace( string $text, array $placeholders ): string {
-	return str_replace( array_keys( $placeholders ), array_values( $placeholders ), $text );
+	// Site admins can edit the templates, but the emails can go to any user on
+	// the network. A key link must not be joined to template text, or a
+	// template such as "https://example.com/?u={reset_link}" would send the key
+	// to that host when clicked. A space keeps the two apart.
+	foreach ( KEY_LINK_PLACEHOLDERS as $token ) {
+		$text = (string) preg_replace( '/(?<=[^ \t\r\n])' . preg_quote( $token, '/' ) . '/', ' ' . $token, $text );
+	}
+
+	// One pass, so a value that contains or completes a placeholder, such as a
+	// site title of "{reset_link}", is never itself replaced.
+	return strtr( $text, $placeholders );
 }
 
 /**
@@ -199,8 +294,23 @@ function replace( string $text, array $placeholders ): string {
 function build_headers(): array {
 	return [
 		'Content-Type: text/plain; charset=UTF-8',
-		sprintf( 'From: %s <%s>', from_name(), from_email() ),
+		sprintf( 'From: "%s" <%s>', from_name(), from_email() ),
 	];
+}
+
+/**
+ * Prepare a subject line for sending.
+ *
+ * Subjects come from editable options and are interpolated with placeholder
+ * values, so strip anything that could inject a header before handing it over.
+ *
+ * @param string               $subject      Subject template.
+ * @param array<string,string> $placeholders Placeholder values.
+ */
+function build_subject( string $subject, array $placeholders ): string {
+	return Security\sanitize_header_value(
+		wp_specialchars_decode( replace( $subject, $placeholders ) )
+	);
 }
 
 // -------------------------------------------------------------------------

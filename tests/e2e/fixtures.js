@@ -59,10 +59,14 @@ function extractLinks( message ) {
 /**
  * Helpers around the test-only mu-plugin in tests/mu-plugins.
  *
- * @param {import('@playwright/test').APIRequestContext} request Request context.
+ * @param {import('@playwright/test').APIRequestContext} request   Request context.
+ * @param {string}                                       [baseURL] Site URL, for test cookies.
  * @return {Object} Mail and account helpers.
  */
-function createHelpers( request ) {
+function createHelpers(
+	request,
+	baseURL = process.env.WP_BASE_URL || 'http://localhost:8889'
+) {
 	async function getJson( response ) {
 		expect(
 			response.ok(),
@@ -240,6 +244,39 @@ function createHelpers( request ) {
 		async getUser( login ) {
 			return getJson( await request.get( routeUrl( 'user', { login } ) ) );
 		},
+
+		/**
+		 * Override plugin options for every request one browser context makes.
+		 * Other tests, and other browser contexts, keep the saved values.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context Browser context.
+		 * @param {Object<string, string|number>}             options `hm_activation_` options.
+		 */
+		async useOptions( context, options ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_options',
+					value: encodeURIComponent( JSON.stringify( options ) ),
+					url: baseURL,
+				},
+			] );
+		},
+
+		/**
+		 * Turn on the stand-in password policy for one browser context.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context   Browser context.
+		 * @param {number}                                    minLength Shortest password allowed.
+		 */
+		async usePasswordPolicy( context, minLength ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_min_password',
+					value: String( minLength ),
+					url: baseURL,
+				},
+			] );
+		},
 	};
 }
 
@@ -247,8 +284,8 @@ function createHelpers( request ) {
  * Extended test fixtures with mail capture and account helpers.
  */
 const test = base.extend( {
-	hmua: async ( { request }, use ) => {
-		await use( createHelpers( request ) );
+	hmua: async ( { request, baseURL }, use ) => {
+		await use( createHelpers( request, baseURL ) );
 	},
 } );
 

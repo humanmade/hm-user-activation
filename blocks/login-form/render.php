@@ -16,6 +16,10 @@ if ( is_user_logged_in() ) {
 $remember  = isset( $attributes['rememberMe'] ) ? (bool) $attributes['rememberMe'] : true;
 $redirect  = ! empty( $attributes['redirect'] ) ? esc_url_raw( $attributes['redirect'] ) : admin_url();
 
+// Keep the post-login destination on this site, so a block attribute cannot be
+// used to bounce authenticated users off to another host.
+$redirect = wp_validate_redirect( $redirect, admin_url() );
+
 $form = wp_login_form( [
 	'echo'           => false,
 	'remember'       => $remember,

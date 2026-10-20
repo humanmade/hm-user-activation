@@ -2,11 +2,14 @@
 /**
  * Server-side render for hm-user-activation/password-reset.
  *
- * Shows one of two forms depending on whether a reset key is present in the URL:
+ * Shows one of two forms depending on whether a valid reset key has been
+ * stashed for this browser:
  *
  *  - No key: "Request reset link" form — user enters username or email.
- *  - key + login present: "Set new password" form — user enters and confirms
- *    a new password. The key and login are carried as hidden fields.
+ *  - Key present: "Set new password" form — user enters and confirms a new
+ *    password. The key comes from the HTTP-only cookie set when the reset link
+ *    was followed, never from the URL, and is echoed back in a hidden field
+ *    only so it can be cross-checked against that cookie on submission.
  *
  * The block hides itself on success; the group variations on the page handle
  * displaying the success messages.
@@ -19,10 +22,10 @@ if ( PasswordReset\is_success() ) {
 	return;
 }
 
-$key   = sanitize_text_field( wp_unslash( $_GET['key']   ?? '' ) );
-$login = sanitize_text_field( wp_unslash( $_GET['login'] ?? '' ) );
+$pending = PasswordReset\pending_credentials();
 
-$is_reset_mode = $key && $login;
+$key           = $pending['key'] ?? '';
+$is_reset_mode = (bool) $pending;
 
 $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-reset' ] );
 ?>
@@ -31,8 +34,7 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 
 	<form method="post" action="" class="hm-password-reset__form">
 		<?php wp_nonce_field( 'hm_reset', '_hm_reset_nonce' ); ?>
-		<input type="hidden" name="rp_key"   value="<?php echo esc_attr( $key ); ?>">
-		<input type="hidden" name="rp_login" value="<?php echo esc_attr( $login ); ?>">
+		<input type="hidden" name="rp_key" value="<?php echo esc_attr( $key ); ?>">
 
 		<p class="hm-password-reset__field">
 			<label class="hm-password-reset__label" for="hm-pass1">
@@ -62,6 +64,14 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 			>
 		</p>
 
+		<?php
+		// Core's hook for extra reset fields, such as password policy notices.
+		$pending_user = PasswordReset\pending_user();
+		if ( $pending_user ) {
+			do_action( 'resetpass_form', $pending_user );
+		}
+		?>
+
 		<div class="hm-password-reset__submit wp-block-button">
 			<button type="submit" class="hm-password-reset__button wp-block-button__button wp-element-button">
 				<?php esc_html_e( 'Set password', 'hm-user-activation' ); ?>
@@ -87,6 +97,12 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 				autocomplete="username"
 			>
 		</p>
+
+		<?php
+		// Core's hook for extra request fields, such as a captcha checked on
+		// lostpassword_post.
+		do_action( 'lostpassword_form' );
+		?>
 
 		<div class="hm-password-reset__submit wp-block-button">
 			<button type="submit" class="hm-password-reset__button wp-block-button__button wp-element-button">
