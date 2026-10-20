@@ -205,6 +205,33 @@ function createHelpers( request ) {
 		},
 
 		/**
+		 * Set the network registration setting.
+		 *
+		 * @param {'none'|'user'|'blog'|'all'} value New setting.
+		 */
+		async setRegistration( value ) {
+			await getJson(
+				await request.post( routeUrl( 'registration' ), {
+					form: { value },
+				} )
+			);
+		},
+
+		/**
+		 * Publish or unpublish the page one of the plugin's options points at.
+		 *
+		 * @param {string}            option Page option, e.g. hm_activation_registration_page_id.
+		 * @param {'publish'|'draft'} status New status.
+		 */
+		async setPageStatus( option, status ) {
+			await getJson(
+				await request.post( routeUrl( 'page-status' ), {
+					form: { option, status },
+				} )
+			);
+		},
+
+		/**
 		 * Look a user up by login.
 		 *
 		 * @param {string} login Username.

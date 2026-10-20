@@ -1,0 +1,14 @@
+/**
+ * hm-user-activation/registration-form — frontend styles.
+ * Intentionally minimal; relies on the theme for typography/colour.
+ */
+
+.hm-registration-form__field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.375em;
+}
+
+.hm-registration-form__error {
+	display: block;
+}

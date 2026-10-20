@@ -105,6 +105,18 @@ add_action(
 			'permission_callback' => $open,
 		] );
 
+		register_rest_route( 'hmua-tests/v1', '/registration', [
+			'methods'             => 'POST',
+			'callback'            => __NAMESPACE__ . '\\set_registration',
+			'permission_callback' => $open,
+		] );
+
+		register_rest_route( 'hmua-tests/v1', '/page-status', [
+			'methods'             => 'POST',
+			'callback'            => __NAMESPACE__ . '\\set_page_status',
+			'permission_callback' => $open,
+		] );
+
 		register_rest_route( 'hmua-tests/v1', '/user', [
 			[
 				'methods'             => 'GET',
@@ -231,6 +243,50 @@ function set_option( \WP_REST_Request $request ) {
 	update_option( $name, $request->get_param( 'value' ) );
 
 	return [ 'name' => $name ];
+}
+
+/**
+ * Set the network's registration setting: none, user, blog or all.
+ */
+function set_registration( \WP_REST_Request $request ) {
+	$value = (string) $request->get_param( 'value' );
+
+	if ( ! in_array( $value, [ 'none', 'user', 'blog', 'all' ], true ) ) {
+		return new \WP_Error( 'hmua_tests_registration', 'Use none, user, blog or all.', [ 'status' => 400 ] );
+	}
+
+	update_site_option( 'registration', $value );
+
+	return [ 'registration' => $value ];
+}
+
+/**
+ * Publish or unpublish the page stored in one of the plugin's page options.
+ */
+function set_page_status( \WP_REST_Request $request ) {
+	$option = (string) $request->get_param( 'option' );
+	$status = (string) $request->get_param( 'status' );
+
+	if ( ! preg_match( '/^hm_activation_\w*page_id$/', $option ) || ! in_array( $status, [ 'publish', 'draft' ], true ) ) {
+		return new \WP_Error( 'hmua_tests_page_status', 'Use an hm_activation_ page option and publish or draft.', [ 'status' => 400 ] );
+	}
+
+	$page_id = (int) get_option( $option );
+
+	if ( ! $page_id || ! get_post( $page_id ) ) {
+		return new \WP_Error( 'hmua_tests_page_status', 'No page is set for that option.', [ 'status' => 404 ] );
+	}
+
+	$updated = wp_update_post( [
+		'ID'          => $page_id,
+		'post_status' => $status,
+	], true );
+
+	if ( is_wp_error( $updated ) ) {
+		return $updated;
+	}
+
+	return [ 'id' => $page_id, 'status' => $status ];
 }
 
 /**
