@@ -307,6 +307,43 @@ test.describe( 'Complete your account', () => {
 		await expect( page ).toHaveURL( /\/wp-admin\// );
 	} );
 
+	test( 'the password chosen in the form wins over one set by an activation hook', async ( {
+		page,
+		context,
+		hmua,
+	} ) => {
+		await hmua.useActivationHookPassword( context );
+		const signup = await hmua.createSignup();
+
+		await page.goto( `${ ACTIVATE }?key=${ signup.key }` );
+		await page
+			.locator( '#hm-activation-pass1' )
+			.fill( 'chosen-password-9!' );
+		await page
+			.locator( '#hm-activation-pass2' )
+			.fill( 'chosen-password-9!' );
+		await page.getByRole( 'button', { name: 'Activate account' } ).click();
+
+		await expect( page ).toHaveURL(
+			/\/log-in\/\?hm_activation_complete=1/
+		);
+		await expect( page.locator( '.hm-login-form__notice' ) ).toHaveText(
+			'Your account is ready. Log in.'
+		);
+
+		await page.goto( '/wp-login.php' );
+		await page.locator( '#user_login' ).fill( signup.login );
+		await page.locator( '#user_pass' ).fill( 'hook-set-password' );
+		await page.locator( '#wp-submit' ).click();
+		await expect( page.locator( '#login_error' ) ).toBeVisible();
+
+		await page.goto( '/wp-login.php' );
+		await page.locator( '#user_login' ).fill( signup.login );
+		await page.locator( '#user_pass' ).fill( 'chosen-password-9!' );
+		await page.locator( '#wp-submit' ).click();
+		await expect( page ).toHaveURL( /\/wp-admin\// );
+	} );
+
 	test( 'a key typed into the key form shows the completion form without activating', async ( {
 		page,
 		hmua,
@@ -455,7 +492,7 @@ test.describe( 'Complete your account turned off', () => {
 	} );
 } );
 
-test.describe( 'Auto log in', () => {
+test.describe( 'Site signup for an existing account', () => {
 	test( 'a site signup for a username that already has an account does not log the visitor in', async ( {
 		page,
 		context,
@@ -475,5 +512,44 @@ test.describe( 'Auto log in', () => {
 		await page.goto( '/' );
 		await expect( page.locator( '#wpadminbar' ) ).toHaveCount( 0 );
 		expect( await hasLoginCookie( context ) ).toBe( false );
+	} );
+
+	test( 'a site signup for an existing account gets no set-password link even when a filter asks for one', async ( {
+		page,
+		context,
+		hmua,
+	} ) => {
+		await hmua.useForcedPasswordSetup( context );
+		const signup = await hmua.createBlogSignup();
+		const existing = await hmua.createUser(
+			'original-password-9!',
+			'subscriber',
+			signup.login
+		);
+
+		await page.goto( `${ ACTIVATE }?key=${ signup.key }` );
+
+		await expect( page.locator( '.hm-activation-errors' ) ).toHaveCount(
+			0
+		);
+		// The site's navigation links to the reset page, so look inside the
+		// success group.
+		const success = page.locator( '.hm-activation-success' );
+		await expect( success ).toBeVisible();
+		await expect(
+			success.getByRole( 'link', { name: 'Set your password' } )
+		).toHaveCount( 0 );
+		await expect(
+			success.locator(
+				'a[href*="action=rp"], a[href*="reset-your-password"]'
+			)
+		).toHaveCount( 0 );
+		await expect( page.locator( 'a[href*="action=rp"]' ) ).toHaveCount( 0 );
+
+		await page.goto( '/wp-login.php' );
+		await page.locator( '#user_login' ).fill( existing.login );
+		await page.locator( '#user_pass' ).fill( existing.password );
+		await page.locator( '#wp-submit' ).click();
+		await expect( page ).toHaveURL( /\/wp-admin\// );
 	} );
 } );

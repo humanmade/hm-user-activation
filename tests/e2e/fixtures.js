@@ -420,6 +420,38 @@ function createHelpers(
 		},
 
 		/**
+		 * Make every account report that it needs a password set-up, for one
+		 * browser context.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context Browser context.
+		 */
+		async useForcedPasswordSetup( context ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_force_password_setup',
+					value: '1',
+					url: baseURL,
+				},
+			] );
+		},
+
+		/**
+		 * Have a hook on activation set the password `hook-set-password`, for
+		 * one browser context.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context Browser context.
+		 */
+		async useActivationHookPassword( context ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_activate_sets_password',
+					value: '1',
+					url: baseURL,
+				},
+			] );
+		},
+
+		/**
 		 * Add the test first name field to the "Complete your account" form
 		 * for one browser context.
 		 *

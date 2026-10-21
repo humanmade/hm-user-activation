@@ -64,6 +64,31 @@ add_filter(
 );
 
 /**
+ * With the `hmua_test_force_password_setup` cookie set, say every account
+ * needs to set a password.
+ */
+add_filter(
+	'hm_user_activation_needs_password_setup',
+	static function ( bool $needs ): bool {
+		return empty( $_COOKIE['hmua_test_force_password_setup'] ) ? $needs : true;
+	},
+	20
+);
+
+/**
+ * With the `hmua_test_activate_sets_password` cookie set, give each activated
+ * user a password, as a site's own activation hook might.
+ */
+add_action(
+	'wpmu_activate_user',
+	static function ( $user_id ): void {
+		if ( ! empty( $_COOKIE['hmua_test_activate_sets_password'] ) ) {
+			wp_set_password( 'hook-set-password', (int) $user_id );
+		}
+	}
+);
+
+/**
  * Record the meta passed to the activated action against the user.
  */
 add_action(
