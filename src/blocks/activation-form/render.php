@@ -83,6 +83,12 @@ if ( $complete ) :
 		</p>
 
 		<?php
+		// Plugins that add fields to wp-login.php?action=register add them here
+		// too, and fill them in again from $_POST after an error.
+
+		/** This action is documented in wp-login.php */
+		do_action( 'register_form' );
+
 		/**
 		 * Fires inside the completion form, before the submit button, so a site can add its own fields.
 		 *
