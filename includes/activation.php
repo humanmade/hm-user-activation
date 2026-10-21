@@ -183,6 +183,11 @@ function process( string $key, bool $auto_login ): void {
 		Resend\clear_counter( $signup );
 	}
 
+	// Core activates a site signup for an existing account with the same
+	// username and returns that account, so the key holder must not be
+	// logged in as it.
+	$existing_user = $signup && username_exists( $signup->user_login );
+
 	$activation = wpmu_activate_signup( $key );
 
 	if ( is_wp_error( $activation ) ) {
@@ -240,7 +245,7 @@ function process( string $key, bool $auto_login ): void {
 	// cannot stop the welcome email. Never replace a session that is already
 	// open: following someone else's activation link must not sign the visitor
 	// out of their own account and into that one.
-	if ( $auto_login && $user && ! is_user_logged_in() ) {
+	if ( $auto_login && $user && ! $existing_user && ! is_user_logged_in() ) {
 		wp_set_current_user( $user_id );
 		wp_set_auth_cookie( $user_id );
 
