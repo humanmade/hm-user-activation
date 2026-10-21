@@ -35,7 +35,7 @@ if ( $complete ) :
 		<?php if ( $complete['errors'] ) : ?>
 			<div class="hm-activation-form__errors" role="alert">
 				<?php foreach ( $complete['errors'] as $message ) : ?>
-					<p><?php echo esc_html( $message ); ?></p>
+					<p><?php echo wp_kses( $message, [ 'strong' => [], 'a' => [ 'href' => [] ] ] ); ?></p>
 				<?php endforeach; ?>
 			</div>
 		<?php endif; ?>
