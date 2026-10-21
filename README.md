@@ -133,6 +133,15 @@ add_action( 'hm_user_activation_complete_account', function ( $user_id, $meta, $
 - `hm_user_activation_complete_account` — action after an account is activated from the Complete your account form, before the welcome email (`int $user_id, array $meta, array $fields`).
 - `hm_user_activation_activated` — action fired after a successful activation (`int $user_id, array $meta`). It fires before auto-login, so the new user is not yet the current user.
 
+## Installation
+
+The plugin needs its compiled `build/` directory. Every release tag and release ZIP includes it, so install a release:
+
+- **Composer** — `composer require humanmade/hm-user-activation`. Composer installs from the release tags, which contain `build/`. To try the latest unreleased code, require `dev-release` instead. The `release` branch is `main` plus a fresh build after every merge.
+- **ZIP** — download `hm-user-activation-X.Y.Z.zip` from the GitHub release and upload it as a plugin.
+
+`main` and `dev-main` hold only the sources. They need `npm install` and `npm run build` before the blocks work. See [Development](#development).
+
 ## Setup
 
 1. Enable user registration for the network under **Network Admin → Settings → Registration Settings** (either "User accounts may be registered" or "Both sites and user accounts can be registered").
@@ -306,7 +315,7 @@ If a CDN or WAF fronts the site, such as Cloudflare, Fastly or CloudFront, put t
 
 ## Development
 
-The block and editor sources live in `src/`. `npm run build` compiles them to `build/`, which is git-ignored. `npm run start` rebuilds when a file changes. The plugin loads its blocks and editor scripts from `build/`, so a source checkout needs a build before the blocks work. Until then, the admin screens show a notice.
+The block and editor sources live in `src/`. `npm run build` compiles them to `build/`, which is git-ignored. `npm run start` rebuilds when a file changes. The plugin loads its blocks and editor scripts from `build/`, so a source checkout needs a build before the blocks work. Until then, the admin screens show a notice. On `main`, the plugin version is the placeholder `__VERSION__`. The Release workflow replaces it in each tag.
 
 ## Testing
 
@@ -357,3 +366,24 @@ If port 8888 is already in use, create a git-ignored `.wp-env.override.json` con
 composer install
 composer lint
 ```
+
+## Releasing
+
+Releases are made by the **Release** workflow (`.github/workflows/release.yml`). Each release is a tag such as `1.2.0` and a GitHub release with a ZIP.
+
+1. Check that `main` has everything for the release and that its checks are green.
+2. Pick the version with [semantic versioning](https://semver.org/): a new major version for breaking changes, a new minor version for new features, and a new patch version for fixes only.
+3. Go to **Actions → Release → Run workflow**, enter the version without a leading `v`, and run it. With the GitHub CLI: `gh workflow run release.yml -f version=1.2.0`.
+
+The workflow does this:
+
+1. It stops if the version is not `X.Y.Z` or the tag already exists.
+2. It runs `npm ci` and `npm run build` on `main`.
+3. It replaces `__VERSION__` in `hm-user-activation.php` with the version.
+4. It commits `build/` and the versioned plugin file, and tags that commit. The commit is only on the tag, not on `main`.
+5. It builds the ZIP with `git archive` and checks it with `.github/scripts/check-archive.sh`. The ZIP must contain `build/` and the version, and must not contain sources, tests or tooling.
+6. It pushes the tag, then publishes a GitHub release with the ZIP and generated notes.
+
+Packagist picks up the new tag by itself. Tags are never moved or deleted, because Packagist does not accept a changed tag. If a release is wrong, release a new patch version.
+
+What ships is set by the `export-ignore` rules in `.gitattributes`. The **Package** workflow builds and checks a ZIP the same way on every pull request, so a change that would break the release fails there first.
