@@ -296,6 +296,25 @@ add_action(
 			'permission_callback' => $open,
 		] );
 
+		register_rest_route( 'hmua-tests/v1', '/blog-signup', [
+			'methods'             => 'POST',
+			'callback'            => __NAMESPACE__ . '\\create_blog_signup',
+			'permission_callback' => $open,
+		] );
+
+		register_rest_route( 'hmua-tests/v1', '/signup-state', [
+			[
+				'methods'             => 'GET',
+				'callback'            => __NAMESPACE__ . '\\get_signup_state',
+				'permission_callback' => $open,
+			],
+			[
+				'methods'             => 'DELETE',
+				'callback'            => __NAMESPACE__ . '\\cleanup_signup',
+				'permission_callback' => $open,
+			],
+		] );
+
 		register_rest_route( 'hmua-tests/v1', '/option', [
 			[
 				'methods'             => 'GET',
@@ -461,6 +480,109 @@ function create_signup( \WP_REST_Request $request ): array {
 			$wpdb->prepare( "SELECT activation_key FROM {$wpdb->signups} WHERE user_login = %s", $user_login )
 		),
 	];
+}
+
+/**
+ * Register a pending site signup, which sends the activation email.
+ *
+ * `path` is the new site's path in a subdirectory network, such as
+ * `/hmua-blog-abc/`.
+ *
+ * @return array|\WP_Error
+ */
+function create_blog_signup( \WP_REST_Request $request ) {
+	global $wpdb;
+
+	$path = (string) $request->get_param( 'path' );
+
+	if ( is_subdomain_install() || ! is_test_path( $path ) ) {
+		return new \WP_Error( 'hmua_tests_blog', 'Use a /hmua-blog-… path on a subdirectory network.', [ 'status' => 400 ] );
+	}
+
+	$user_login = sanitize_user( (string) $request->get_param( 'user_login' ), true );
+	$user_email = sanitize_email( (string) $request->get_param( 'user_email' ) );
+
+	wpmu_signup_blog( get_network()->domain, $path, 'Test site', $user_login, $user_email );
+
+	return [
+		'user_login'     => $user_login,
+		'user_email'     => $user_email,
+		'path'           => $path,
+		'activation_key' => (string) $wpdb->get_var(
+			$wpdb->prepare( "SELECT activation_key FROM {$wpdb->signups} WHERE user_login = %s AND path = %s", $user_login, $path )
+		),
+	];
+}
+
+/**
+ * Whether a path is one the helpers may create or delete a site at.
+ */
+function is_test_path( string $path ): bool {
+	return (bool) preg_match( '#^/hmua-blog-[a-z0-9]+/$#', $path );
+}
+
+/**
+ * Whether a signup is still waiting, and whether a site and user exist.
+ * `path` is optional and only needed to look for a site.
+ *
+ * @return array|\WP_Error
+ */
+function get_signup_state( \WP_REST_Request $request ) {
+	global $wpdb;
+
+	$user_login = sanitize_user( (string) $request->get_param( 'user_login' ), true );
+	$path       = (string) $request->get_param( 'path' );
+
+	$signup = $wpdb->get_row(
+		$wpdb->prepare( "SELECT active FROM {$wpdb->signups} WHERE user_login = %s ORDER BY signup_id DESC", $user_login )
+	);
+
+	return [
+		'signup_exists' => (bool) $signup,
+		'signup_active' => $signup ? (bool) (int) $signup->active : false,
+		'user_exists'   => (bool) username_exists( $user_login ),
+		'site_exists'   => $path && (bool) $wpdb->get_var(
+			$wpdb->prepare( "SELECT blog_id FROM {$wpdb->blogs} WHERE domain = %s AND path = %s", get_network()->domain, $path )
+		),
+	];
+}
+
+/**
+ * Remove the signups, site and user a test made. Only `hmua` usernames and
+ * `/hmua-blog-…` paths are touched.
+ *
+ * @return array|\WP_Error
+ */
+function cleanup_signup( \WP_REST_Request $request ) {
+	global $wpdb;
+
+	$user_login = sanitize_user( (string) $request->get_param( 'user_login' ), true );
+	$path       = (string) $request->get_param( 'path' );
+
+	if ( strpos( $user_login, 'hmua' ) !== 0 || ( $path && ! is_test_path( $path ) ) ) {
+		return new \WP_Error( 'hmua_tests_cleanup', 'Only hmua users and /hmua-blog-… paths can be removed.', [ 'status' => 400 ] );
+	}
+
+	require_once ABSPATH . 'wp-admin/includes/ms.php';
+	require_once ABSPATH . 'wp-admin/includes/user.php';
+
+	$wpdb->delete( $wpdb->signups, [ 'user_login' => $user_login ] );
+
+	$blog_id = $path ? (int) $wpdb->get_var(
+		$wpdb->prepare( "SELECT blog_id FROM {$wpdb->blogs} WHERE domain = %s AND path = %s", get_network()->domain, $path )
+	) : 0;
+
+	if ( $blog_id > 1 ) {
+		wpmu_delete_blog( $blog_id, true );
+	}
+
+	$user = get_user_by( 'login', $user_login );
+
+	if ( $user ) {
+		wpmu_delete_user( $user->ID );
+	}
+
+	return [ 'cleaned' => true ];
 }
 
 /**

@@ -1,4 +1,37 @@
-const { test, expect } = require( './fixtures' );
+const { test: base, expect } = require( './fixtures' );
+
+/**
+ * Same fixtures, but every signup, site and user a test makes through the
+ * helpers is removed afterwards.
+ */
+const test = base.extend( {
+	hmua: async ( { hmua }, use ) => {
+		const made = [];
+
+		await use( {
+			...hmua,
+			async createSignup( ...args ) {
+				const signup = await hmua.createSignup( ...args );
+				made.push( [ signup.login ] );
+				return signup;
+			},
+			async createBlogSignup( ...args ) {
+				const signup = await hmua.createBlogSignup( ...args );
+				made.push( [ signup.login, signup.path ] );
+				return signup;
+			},
+			async createUser( ...args ) {
+				const user = await hmua.createUser( ...args );
+				made.push( [ user.login ] );
+				return user;
+			},
+		} );
+
+		for ( const [ login, path ] of made ) {
+			await hmua.cleanup( login, path );
+		}
+	},
+} );
 
 // Activation is for visitors who are not signed in.
 test.use( { storageState: { cookies: [], origins: [] } } );
@@ -142,7 +175,13 @@ test.describe( 'Complete your account', () => {
 		hmua,
 	} ) => {
 		await hmua.useCompleteFields( context );
-		const signup = await hmua.createSignup();
+		await hmua.useOptions( context, {
+			hm_activation_complete_profile: 1,
+			hm_activation_auto_login: 1,
+		} );
+		const signup = await hmua.createSignup( {
+			meta: { source: 'complete-test' },
+		} );
 
 		await page.goto( `${ ACTIVATE }?key=${ signup.key }` );
 		await page.getByLabel( 'First name' ).fill( 'Ann' );
@@ -163,10 +202,21 @@ test.describe( 'Complete your account', () => {
 		expect( user.exists ).toBe( true );
 		expect( user.email ).toBe( signup.email );
 		expect( user.first_name ).toBe( 'Ann' );
+		// hm_user_activation_activated fired with the signup meta.
+		expect( user.activation_meta ).toMatchObject( {
+			source: 'complete-test',
+		} );
 		expect( user.complete_keys ).toContain( 'first_name' );
 		for ( const key of [ 'pass1', 'pass2', 'activation_key' ] ) {
 			expect( user.complete_keys ).not.toContain( key );
 		}
+
+		// The log in screen shows the same notice.
+		await page.goto( '/wp-login.php?hm_activation_complete=1' );
+		await expect(
+			page.getByText( 'Your account is ready. Log in.' )
+		).toBeVisible();
+		expect( await hasLoginCookie( context ) ).toBe( false );
 
 		// The welcome email points at the log in page, with no password step.
 		const welcome = await hmua.mail.waitFor( signup.email, {
@@ -198,6 +248,137 @@ test.describe( 'Complete your account', () => {
 		await expect(
 			page.locator( 'form.hm-activation-form__complete' )
 		).toHaveCount( 0 );
+	} );
+
+	test( 'a site signup for a username that already has an account shows the generic error', async ( {
+		page,
+		context,
+		hmua,
+	} ) => {
+		const other = await hmua.createSignup();
+		const signup = await hmua.createBlogSignup();
+		const existing = await hmua.createUser(
+			'original-password-9!',
+			'subscriber',
+			signup.login
+		);
+
+		await page.goto( `${ ACTIVATE }?key=${ signup.key }` );
+
+		await expect( page.locator( '.hm-activation-errors' ) ).toContainText(
+			USED_OR_UNKNOWN
+		);
+		await expect( page.locator( '.hm-resend-form' ) ).toBeVisible();
+		await expect(
+			page.locator( 'form.hm-activation-form__complete' )
+		).toHaveCount( 0 );
+
+		// Post the completion form directly, with a valid nonce from another
+		// signup's form.
+		await page.goto( `${ ACTIVATE }?key=${ other.key }` );
+		const nonce = await page
+			.locator( 'input[name="_hm_complete_nonce"]' )
+			.inputValue();
+		const response = await context.request.post( ACTIVATE, {
+			form: {
+				_hm_complete_nonce: nonce,
+				activation_key: signup.key,
+				pass1: 'attacker-password-9!',
+				pass2: 'attacker-password-9!',
+			},
+		} );
+		expect( await response.text() ).toContain( USED_OR_UNKNOWN );
+
+		const state = await hmua.getSignupState( signup.login, signup.path );
+		expect( state.signup_active ).toBe( false );
+		expect( state.site_exists ).toBe( false );
+
+		// The existing account keeps its own password.
+		await page.goto( '/wp-login.php' );
+		await page.locator( '#user_login' ).fill( existing.login );
+		await page.locator( '#user_pass' ).fill( 'attacker-password-9!' );
+		await page.locator( '#wp-submit' ).click();
+		await expect( page.locator( '#login_error' ) ).toBeVisible();
+
+		await page.goto( '/wp-login.php' );
+		await page.locator( '#user_login' ).fill( existing.login );
+		await page.locator( '#user_pass' ).fill( existing.password );
+		await page.locator( '#wp-submit' ).click();
+		await expect( page ).toHaveURL( /\/wp-admin\// );
+	} );
+
+	test( 'a key typed into the key form shows the completion form without activating', async ( {
+		page,
+		hmua,
+	} ) => {
+		const signup = await hmua.createSignup();
+
+		await page.goto( ACTIVATE );
+		await page.locator( '#hm-activation-key' ).fill( signup.key );
+		await page.getByRole( 'button', { name: 'Activate account' } ).click();
+
+		await expect(
+			page.locator( 'form.hm-activation-form__complete' )
+		).toBeVisible();
+		await expect( page.locator( '#hm-activation-email' ) ).toHaveValue(
+			signup.email
+		);
+		await expect( page.locator( '#hm-activation-key' ) ).toHaveCount( 0 );
+		expect( ( await hmua.getUser( signup.login ) ).exists ).toBe( false );
+	} );
+
+	test( 'a completion form with a changed key shows the generic error', async ( {
+		page,
+		hmua,
+	} ) => {
+		const signup = await hmua.createSignup();
+
+		await page.goto( `${ ACTIVATE }?key=${ signup.key }` );
+		await page
+			.locator( 'input[name="activation_key"]' )
+			.evaluate( ( input ) => {
+				input.value = 'not-the-key';
+			} );
+		await page.locator( '#hm-activation-pass1' ).fill( 'password-one-9!' );
+		await page.locator( '#hm-activation-pass2' ).fill( 'password-one-9!' );
+		await page.getByRole( 'button', { name: 'Activate account' } ).click();
+
+		await expect( page.locator( '.hm-activation-errors' ) ).toContainText(
+			USED_OR_UNKNOWN
+		);
+		await expect( page.locator( '.hm-resend-form' ) ).toBeVisible();
+		expect( ( await hmua.getUser( signup.login ) ).exists ).toBe( false );
+		expect(
+			( await hmua.getSignupState( signup.login ) ).signup_active
+		).toBe( false );
+	} );
+
+	test( 'a failed security check keeps the form and does not fill the fields in again', async ( {
+		page,
+		context,
+		hmua,
+	} ) => {
+		await hmua.useCompleteFields( context );
+		const signup = await hmua.createSignup();
+
+		await page.goto( `${ ACTIVATE }?key=${ signup.key }` );
+		await page.getByLabel( 'First name' ).fill( 'Ann' );
+		await page.locator( '#hm-activation-pass1' ).fill( 'password-one-9!' );
+		await page.locator( '#hm-activation-pass2' ).fill( 'password-one-9!' );
+		await page
+			.locator( 'input[name="_hm_complete_nonce"]' )
+			.evaluate( ( input ) => {
+				input.value = 'badnonce';
+			} );
+		await page.getByRole( 'button', { name: 'Activate account' } ).click();
+
+		const form = page.locator( 'form.hm-activation-form__complete' );
+		await expect(
+			form.locator( '.hm-activation-form__errors' )
+		).toContainText( 'Security check failed' );
+		await expect( form ).toBeVisible();
+		await expect( page.getByLabel( 'First name' ) ).toHaveValue( '' );
+		expect( ( await hmua.getUser( signup.login ) ).exists ).toBe( false );
 	} );
 
 	test( 'a used key shows the generic error and the resend form', async ( {
@@ -271,5 +452,28 @@ test.describe( 'Complete your account turned off', () => {
 			page.locator( 'form.hm-activation-form__complete' )
 		).toHaveCount( 0 );
 		expect( ( await hmua.getUser( signup.login ) ).exists ).toBe( true );
+	} );
+} );
+
+test.describe( 'Auto log in', () => {
+	test( 'a site signup for a username that already has an account does not log the visitor in', async ( {
+		page,
+		context,
+		hmua,
+	} ) => {
+		await hmua.useOptions( context, { hm_activation_auto_login: 1 } );
+		const signup = await hmua.createBlogSignup();
+		await hmua.createUser(
+			'original-password-9!',
+			'subscriber',
+			signup.login
+		);
+
+		await page.goto( `${ ACTIVATE }?key=${ signup.key }` );
+		expect( await hasLoginCookie( context ) ).toBe( false );
+
+		await page.goto( '/' );
+		await expect( page.locator( '#wpadminbar' ) ).toHaveCount( 0 );
+		expect( await hasLoginCookie( context ) ).toBe( false );
 	} );
 } );
