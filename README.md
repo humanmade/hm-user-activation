@@ -10,7 +10,7 @@ Replaces WordPress Multisite's default `wp-signup.php` and `wp-activate.php` flo
 
 ## Features
 
-**Site-level registration page** — registration happens on your own site instead of the network's `wp-signup.php`. Signups are created with core's multisite functions (`wpmu_validate_user_signup()` and `wpmu_signup_user()`), so all the usual validation — reserved and illegal names, banned email domains, existing users, pending signups — still applies. Core's sign-up hooks are honoured too, so CAPTCHA, anti-spam and consent plugins that add fields to `wp-signup.php` work here. See [Extending the forms](#extending-the-forms). Plugins that only load on `wp-signup.php` need testing. Like `wp-signup.php`, the form tells visitors when a username or email address is already taken, unless [Same response for known addresses](#same-response-for-known-addresses) is on.
+**Site-level registration page** — registration happens on your own site instead of the network's `wp-signup.php`. Signups are created with core's multisite functions (`wpmu_validate_user_signup()` and `wpmu_signup_user()`), so all the usual validation — reserved and illegal names, banned email domains, existing users, pending signups — still applies. Core's sign-up hooks are honoured too, so CAPTCHA, anti-spam and consent plugins that add fields to `wp-signup.php` work here. See [Extending the forms](#extending-the-forms). Plugins that only load on `wp-signup.php` need testing. Like `wp-signup.php`, the form tells visitors when a username or email address is already taken. [Same response for known addresses](#same-response-for-known-addresses) hides this for email addresses.
 
 Once the page is published, `wp_registration_url()` and the `wp-login.php?action=register` link point at it for logged-out visitors. When the network allows user accounts only, requests to `wp-signup.php` are redirected there too. This needs the plugin to be active on the network's main site, because `wp-signup.php` always runs on the main site. When the network also allows sites, `wp-signup.php` stays with core so people can still sign up for a site, and logged-in users keep the "Add New Site" link in My Sites.
 
@@ -313,9 +313,11 @@ With it on:
 
 - If the only problem is that the email address has an account or a pending signup, the form shows the usual confirmation. No signup is made.
 - An existing account gets a short email with its username, a log in link and a password reset link. It is sent at most once an hour for each address.
-- A pending signup gets its activation email again. The usual resend limits apply, so sometimes nothing is sent.
+- A pending signup gets its activation email again. The usual resend limits apply, including the limit for each IP address, so sometimes nothing is sent.
 - Errors the person can fix still show, for example an invalid email address, a failed security check or a field another plugin checks. When the address is taken and another field is wrong, only the other error shows. The response depends only on what the person typed, not on who has an account.
 - A username that already belongs to an account still gets its error. A username that is only held by a pending signup does not. A new address holds the username it signed up with and a known address does not, so that error would give the address away. Two pending signups can then have the same username. The first to activate gets it, and the other gets an error when they activate.
+
+The mode covers this registration form only. When the network allows user accounts only, `wp-signup.php` is redirected to the form, including posts of core's own sign-up form, as long as this plugin is active on the main site and the setting is on there. When the network also allows sites, `wp-signup.php` stays with core and still shows core's errors. Core's log in and lost password forms also have their own messages for unknown accounts.
 
 The confirmation says an activation link was sent. In this mode, that is not exactly true for known addresses. If you want neutral words, replace the bound paragraph in the **Registration Success** group with your own text, such as "Check your inbox to continue."
 

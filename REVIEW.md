@@ -30,6 +30,8 @@
 - Cap 3. phpcs (HM standard) has many pre-existing errors; report only violations a change adds, and only if they differ from the existing file conventions.
 
 ## Learned
+- 2026-10-21: Same-response mode (registration form) must give the same *later* responses too, not just the current one: a path that skips `wpmu_signup_user()` leaves the username unreserved, so a second submit with that username shows whether the first address was known. Also check other routes to core's errors (`wp-signup.php` POSTs with `stage`, which the redirect lets through).
+- 2026-10-21: Same-response mode strips core's email errors by count, relying on the "already registered" then "pending" checks being the last `user_email` errors in `wpmu_validate_user_signup()` (identical in 6.9.7 and 7.1). Recheck when the supported core range changes.
 - 2026-10-21: The `build-to-release-branch` action needs an existing `release` branch that is an ancestor of `main` but not equal to it (`release == main` makes `git apply` fail on an empty diff). Don't flag the one-time `git push origin main:release` before a merge as a bug.
 - 2026-10-21: `.github/scripts/stamp-version.sh` sets every built `block.json` version at release (core uses it as the block stylesheet `?ver=`), so the hand-set versions in `src/blocks/*/block.json` only matter on `main` and `dev-release`.
 - 2026-10-21: Release tags (PR #11) are cut by `release.yml` as a commit off `main` that force-adds `build/` and stamps `__VERSION__`; that commit is reachable only from the tag, by design. `main` and the `release` branch keep `Version: __VERSION__` (the constant is unused at runtime), so don't flag that.

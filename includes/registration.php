@@ -53,8 +53,11 @@ function maybe_redirect_wp_signup(): void {
 		return;
 	}
 
+	// Core's own form posts back to wp-signup.php with a stage. In same
+	// response mode that form would still show core's errors, so it is
+	// redirected too.
 	// phpcs:ignore WordPress.Security.NonceVerification -- Presence check only; core verifies its own form.
-	if ( ! empty( $_GET['new'] ) || ! empty( $_POST['stage'] ) ) {
+	if ( ( ! empty( $_GET['new'] ) || ! empty( $_POST['stage'] ) ) && ! hides_account_state() ) {
 		return;
 	}
 
@@ -193,7 +196,7 @@ function process( string $user_name, string $user_email ): void {
 			if ( $user ) {
 				send_existing_account_email( $user );
 			}
-		} else {
+		} elseif ( ! Resend\ip_limit_reached() ) {
 			Resend\resend( $user_email );
 		}
 
