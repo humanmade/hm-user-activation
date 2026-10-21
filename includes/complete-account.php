@@ -178,7 +178,7 @@ function process_submission( int $page_id ): void {
 	 *
 	 * @param \WP_Error $errors Errors found so far, including password errors.
 	 * @param array     $fields Posted fields, unslashed and not sanitised, without the password fields.
-	 * @param object    $signup Signup row.
+	 * @param object    $signup Signup row, including the activation key.
 	 * @param array     $meta   Signup meta.
 	 */
 	$filtered = apply_filters( 'hm_user_activation_complete_account_errors', $errors, $fields, $signup, $meta );
@@ -206,6 +206,15 @@ function process_submission( int $page_id ): void {
 	}
 
 	$user_id = (int) $activation['user_id'];
+	$user    = get_user_by( 'id', $user_id );
+
+	// Only an account this activation created can have its password set. A
+	// site signup for a username taken since check_key() ran gets the
+	// existing account, which still has its own password.
+	if ( ! $user || empty( $activation['password'] ) || ! wp_check_password( $activation['password'], $user->user_pass, $user_id ) ) {
+		fail( invalid_key_error(), $page_id );
+		return;
+	}
 
 	// The same value and call that reset_password() uses, without the
 	// password change email it sends to the site admin. A password set by a
@@ -232,6 +241,12 @@ function process_submission( int $page_id ): void {
 	// The password is set, so the welcome email has no set-password step.
 	Activation\finish( $user_id, $meta, '', false );
 
+	// With headers already sent there is no redirect, so the page shows the
+	// success group that finish() set up.
+	if ( headers_sent() ) {
+		return;
+	}
+
 	// The log in URL is the admin's setting or a filter, not user input, and
 	// can be on another host of a subdomain network, so wp_safe_redirect()
 	// would send the user to wp-admin instead.
@@ -243,7 +258,9 @@ function process_submission( int $page_id ): void {
  * The signup for a key, or an error when it can't be completed.
  *
  * Unknown and already used keys get the same message, so the form says
- * nothing about which keys exist.
+ * nothing about which keys exist. So does a signup whose username already
+ * belongs to an account: core activates a site signup for that account, and
+ * the form would then set its password.
  *
  * @param string $key Activation key.
  * @return object|\WP_Error
@@ -251,8 +268,12 @@ function process_submission( int $page_id ): void {
 function check_key( string $key ) {
 	$signup = $key ? Activation\get_signup_by_key( $key ) : null;
 
+	if ( $signup && username_exists( $signup->user_login ) ) {
+		$signup = null;
+	}
+
 	if ( ! $signup || (int) $signup->active ) {
-		return new \WP_Error( 'invalid_key', __( 'This activation link is not valid. It may have been used already. Request a new one below.', 'hm-user-activation' ) );
+		return invalid_key_error();
 	}
 
 	if ( Activation\is_expired( $signup ) ) {
@@ -260,6 +281,13 @@ function check_key( string $key ) {
 	}
 
 	return $signup;
+}
+
+/**
+ * The one error for unknown, used and unusable keys.
+ */
+function invalid_key_error(): \WP_Error {
+	return new \WP_Error( 'invalid_key', __( 'This activation link is not valid. It may have been used already. Request a new one below.', 'hm-user-activation' ) );
 }
 
 /**

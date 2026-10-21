@@ -89,7 +89,7 @@ if ( $complete ) :
 		 * Validate them with hm_user_activation_complete_account_errors and save
 		 * them on hm_user_activation_complete_account. Escape anything printed.
 		 *
-		 * @param object $signup Signup row.
+		 * @param object $signup Signup row. It includes the activation key, which is also in the form.
 		 * @param array  $meta   Signup meta.
 		 * @param array  $fields Fields posted with a form that had errors, unslashed and not sanitised, so they can be filled in again. Empty on first view.
 		 */

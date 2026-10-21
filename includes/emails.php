@@ -5,6 +5,7 @@
 
 namespace HM\UserActivation\Emails;
 
+use HM\UserActivation\CompleteAccount;
 use HM\UserActivation\PasswordReset;
 use HM\UserActivation\Security;
 
@@ -84,8 +85,12 @@ function redact_site_welcome_password( $welcome_email, $blog_id, $user_id, $pass
 		return $welcome_email;
 	}
 
-	/* translators: %s: password reset page URL */
-	$notice = sprintf( __( 'Not sent by email. Set one at: %s', 'hm-user-activation' ), wp_lostpassword_url() );
+	if ( CompleteAccount\is_enabled() ) {
+		$notice = __( 'The password you chose when you activated your account.', 'hm-user-activation' );
+	} else {
+		/* translators: %s: password reset page URL */
+		$notice = sprintf( __( 'Not sent by email. Set one at: %s', 'hm-user-activation' ), wp_lostpassword_url() );
+	}
 
 	return str_replace( $password, $notice, $welcome_email );
 }

@@ -328,7 +328,6 @@ function validate_new_password( \WP_User $user, string &$pass1, string &$pass2 )
 	do_action( 'validate_password_reset', $errors, $user );
 
 	return $errors;
-
 }
 
 // -------------------------------------------------------------------------
