@@ -6,6 +6,7 @@
  */
 
 use function HM\UserActivation\Registration\generate_user_name;
+use function HM\UserActivation\Registration\user_name_available;
 
 class Test_Generate_User_Name extends WP_UnitTestCase {
 
@@ -102,6 +103,25 @@ class Test_Generate_User_Name extends WP_UnitTestCase {
 		update_site_option( 'illegal_names', [ 'jane' ] );
 
 		$this->assertSame( 'jane2', generate_user_name( 'jane@example.com' ) );
+	}
+
+	public function test_core_default_illegal_names_are_used_without_the_option(): void {
+		global $wpdb;
+
+		// The test install has an admin account, which would also make the name unavailable.
+		$admin = get_user_by( 'login', 'admin' );
+
+		if ( $admin ) {
+			$wpdb->update( $wpdb->users, [ 'user_login' => 'firstadmin' ], [ 'ID' => $admin->ID ] );
+			clean_user_cache( $admin->ID );
+		}
+
+		$this->assertFalse( username_exists( 'admin' ) );
+
+		delete_site_option( 'illegal_names' );
+
+		$this->assertFalse( user_name_available( 'admin' ) );
+		$this->assertTrue( user_name_available( 'jane' ) );
 	}
 
 	public function test_illegal_user_logins_filter_is_respected(): void {

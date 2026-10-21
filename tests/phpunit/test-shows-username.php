@@ -74,6 +74,65 @@ class Test_Shows_Username extends WP_UnitTestCase {
 		$this->assertFalse( shows_username() );
 	}
 
+	public function test_a_draft_synced_pattern_is_ignored(): void {
+		$pattern_id = self::factory()->post->create( [
+			'post_type'    => 'wp_block',
+			'post_status'  => 'draft',
+			'post_content' => self::BLOCK_OFF,
+		] );
+
+		$this->set_registration_page( '<!-- wp:block {"ref":' . $pattern_id . '} /-->' );
+
+		$this->assertTrue( shows_username() );
+	}
+
+	public function test_a_password_protected_synced_pattern_is_ignored(): void {
+		$pattern_id = self::factory()->post->create( [
+			'post_type'     => 'wp_block',
+			'post_status'   => 'publish',
+			'post_password' => 'secret',
+			'post_content'  => self::BLOCK_OFF,
+		] );
+
+		$this->set_registration_page( '<!-- wp:block {"ref":' . $pattern_id . '} /-->' );
+
+		$this->assertTrue( shows_username() );
+	}
+
+	public function test_a_synced_pattern_that_contains_itself_does_not_loop(): void {
+		$pattern_id = self::factory()->post->create( [
+			'post_type'    => 'wp_block',
+			'post_status'  => 'publish',
+			'post_content' => '',
+		] );
+
+		wp_update_post( [
+			'ID'           => $pattern_id,
+			'post_content' => '<!-- wp:block {"ref":' . $pattern_id . '} /-->',
+		] );
+
+		$this->set_registration_page( '<!-- wp:block {"ref":' . $pattern_id . '} /-->' );
+
+		$this->assertTrue( shows_username() );
+	}
+
+	public function test_a_form_block_after_a_self_referencing_pattern_is_still_found(): void {
+		$pattern_id = self::factory()->post->create( [
+			'post_type'    => 'wp_block',
+			'post_status'  => 'publish',
+			'post_content' => '',
+		] );
+
+		wp_update_post( [
+			'ID'           => $pattern_id,
+			'post_content' => '<!-- wp:block {"ref":' . $pattern_id . '} /-->',
+		] );
+
+		$this->set_registration_page( '<!-- wp:block {"ref":' . $pattern_id . '} /-->' . self::BLOCK_OFF );
+
+		$this->assertFalse( shows_username() );
+	}
+
 	public function test_the_first_form_block_wins(): void {
 		$this->set_registration_page( self::BLOCK_OFF . '<!-- wp:hm-user-activation/registration-form /-->' );
 
