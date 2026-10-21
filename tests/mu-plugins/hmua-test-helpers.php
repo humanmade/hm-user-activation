@@ -166,6 +166,63 @@ add_action(
 	}
 );
 
+/**
+ * Let tests turn off the lost password link rewrite with an option.
+ */
+add_filter(
+	'hm_user_activation_filter_lostpassword_url',
+	static function ( bool $filter ): bool {
+		return get_option( 'hm_activation_test_filter_lostpassword', '1' ) === '0' ? false : $filter;
+	}
+);
+
+/**
+ * Let tests change the reset link used when there is no published reset page.
+ */
+add_filter(
+	'hm_user_activation_reset_url_fallback',
+	static function ( string $url ): string {
+		return get_option( 'hm_activation_test_reset_fallback' ) ?: $url;
+	}
+);
+
+/**
+ * Record what the link lifetime filter was given.
+ */
+add_filter(
+	'hm_user_activation_link_lifetime',
+	static function ( $hours, $signup = null ) {
+		update_option(
+			'hm_activation_test_lifetime_args',
+			[
+				'argument_count' => func_num_args(),
+				'is_object'      => is_object( $signup ),
+				'user_login'     => is_object( $signup ) ? $signup->user_login : null,
+			]
+		);
+
+		return $hours;
+	},
+	10,
+	2
+);
+
+/**
+ * Record whether the activation result was already set when the welcome
+ * email filter ran.
+ */
+add_filter(
+	'hm_user_activation_send_welcome_email',
+	static function ( $send ) {
+		update_option(
+			'hm_activation_test_welcome_filter',
+			[ 'result_is_success' => \HM\UserActivation\Activation\is_success() ]
+		);
+
+		return $send;
+	}
+);
+
 add_action(
 	'rest_api_init',
 	static function () {
@@ -191,8 +248,44 @@ add_action(
 		] );
 
 		register_rest_route( 'hmua-tests/v1', '/option', [
-			'methods'             => 'POST',
-			'callback'            => __NAMESPACE__ . '\\set_option',
+			[
+				'methods'             => 'GET',
+				'callback'            => __NAMESPACE__ . '\\get_option_value',
+				'permission_callback' => $open,
+			],
+			[
+				'methods'             => 'POST',
+				'callback'            => __NAMESPACE__ . '\\set_option',
+				'permission_callback' => $open,
+			],
+			[
+				'methods'             => 'DELETE',
+				'callback'            => __NAMESPACE__ . '\\delete_option_value',
+				'permission_callback' => $open,
+			],
+		] );
+
+		register_rest_route( 'hmua-tests/v1', '/page', [
+			[
+				'methods'             => 'GET',
+				'callback'            => __NAMESPACE__ . '\\get_page',
+				'permission_callback' => $open,
+			],
+			[
+				'methods'             => 'POST',
+				'callback'            => __NAMESPACE__ . '\\create_page',
+				'permission_callback' => $open,
+			],
+			[
+				'methods'             => 'DELETE',
+				'callback'            => __NAMESPACE__ . '\\delete_page',
+				'permission_callback' => $open,
+			],
+		] );
+
+		register_rest_route( 'hmua-tests/v1', '/shims', [
+			'methods'             => 'GET',
+			'callback'            => __NAMESPACE__ . '\\check_shims',
 			'permission_callback' => $open,
 		] );
 
@@ -322,18 +415,166 @@ function create_signup( \WP_REST_Request $request ): array {
 }
 
 /**
+ * Whether an option name is one the helpers may touch.
+ */
+function is_plugin_option( string $name ): bool {
+	return strpos( $name, 'hm_activation_' ) === 0;
+}
+
+/**
+ * Read one of the plugin's options, reporting whether it exists.
+ *
+ * @return array|\WP_Error
+ */
+function get_option_value( \WP_REST_Request $request ) {
+	$name = (string) $request->get_param( 'name' );
+
+	if ( ! is_plugin_option( $name ) ) {
+		return new \WP_Error( 'hmua_tests_option', 'Only hm_activation_ options can be read.', [ 'status' => 400 ] );
+	}
+
+	$missing = new \stdClass();
+	$value   = get_option( $name, $missing );
+
+	return [
+		'exists' => $value !== $missing,
+		'value'  => $value === $missing ? null : $value,
+	];
+}
+
+/**
  * Set one of the plugin's options. Anything else is refused.
+ *
+ * @return array|\WP_Error
  */
 function set_option( \WP_REST_Request $request ) {
 	$name = (string) $request->get_param( 'name' );
 
-	if ( strpos( $name, 'hm_activation_' ) !== 0 ) {
+	if ( ! is_plugin_option( $name ) ) {
 		return new \WP_Error( 'hmua_tests_option', 'Only hm_activation_ options can be set.', [ 'status' => 400 ] );
 	}
 
 	update_option( $name, $request->get_param( 'value' ) );
 
 	return [ 'name' => $name ];
+}
+
+/**
+ * Delete one of the plugin's options. Anything else is refused.
+ *
+ * @return array|\WP_Error
+ */
+function delete_option_value( \WP_REST_Request $request ) {
+	$name = (string) $request->get_param( 'name' );
+
+	if ( ! is_plugin_option( $name ) ) {
+		return new \WP_Error( 'hmua_tests_option', 'Only hm_activation_ options can be deleted.', [ 'status' => 400 ] );
+	}
+
+	delete_option( $name );
+
+	return [ 'name' => $name ];
+}
+
+/**
+ * Create a page and return its id. The status defaults to published.
+ *
+ * Content is saved as sent, as it would be by an author who can post
+ * unfiltered HTML.
+ *
+ * @return array|\WP_Error
+ */
+function create_page( \WP_REST_Request $request ) {
+	kses_remove_filters();
+
+	$id = wp_insert_post(
+		wp_slash( [
+			'post_title'   => (string) $request->get_param( 'title' ),
+			'post_name'    => (string) $request->get_param( 'slug' ),
+			'post_content' => (string) $request->get_param( 'content' ),
+			'post_status'  => (string) ( $request->get_param( 'status' ) ?: 'publish' ),
+			'post_type'    => 'page',
+		] ),
+		true
+	);
+
+	kses_init_filters();
+
+	return is_wp_error( $id ) ? $id : [ 'id' => $id ];
+}
+
+/**
+ * A page's status, link and content.
+ *
+ * @return array|\WP_Error
+ */
+function get_page( \WP_REST_Request $request ) {
+	$page = get_post( (int) $request->get_param( 'id' ) );
+
+	if ( ! $page || $page->post_type !== 'page' ) {
+		return new \WP_Error( 'hmua_tests_page', 'No such page.', [ 'status' => 404 ] );
+	}
+
+	return [
+		'id'      => $page->ID,
+		'status'  => $page->post_status,
+		'link'    => get_permalink( $page ),
+		'content' => $page->post_content,
+	];
+}
+
+/**
+ * Delete a page for good.
+ */
+function delete_page( \WP_REST_Request $request ): array {
+	$id = (int) $request->get_param( 'id' );
+
+	return [ 'deleted' => get_post_type( $id ) === 'page' && (bool) wp_delete_post( $id, true ) ];
+}
+
+/**
+ * Report on the deprecated 1.0.0 classes: whether they exist, what a
+ * result built by 1.1 looks like through them, and whether they warn.
+ */
+function check_shims(): array {
+	$deprecated = [];
+
+	add_action(
+		'deprecated_function_run',
+		static function ( $function_name ) use ( &$deprecated ) {
+			$deprecated[] = $function_name;
+		}
+	);
+	add_filter( 'deprecated_function_trigger_error', '__return_false' );
+
+	$exists = [];
+
+	foreach ( [ 'Activation', 'Emails', 'Block_Bindings', 'Page_Setup', 'Admin_Settings' ] as $class ) {
+		$exists[ $class ] = class_exists( 'HM\\UserActivation\\' . $class );
+	}
+
+	$report = [ 'classes' => $exists ];
+
+	if ( $exists['Activation'] ) {
+		\HM\UserActivation\Activation\result( [
+			'success'   => true,
+			'user_id'   => 1,
+			'username'  => 'someone',
+			'reset_url' => 'https://example.com/reset',
+		] );
+
+		$result = \HM\UserActivation\Activation::get_result();
+
+		$report['result_keys']       = array_keys( $result );
+		$report['is_success']        = \HM\UserActivation\Activation::is_success();
+		$report['username']          = \HM\UserActivation\Activation::get_username();
+		$report['password']          = \HM\UserActivation\Activation::get_password();
+		$report['deprecated_called'] = $deprecated;
+
+		\HM\UserActivation\Activation\result( null );
+	}
+
+	return $report;
 }
 
 /**
@@ -381,23 +622,31 @@ function set_page_status( \WP_REST_Request $request ) {
 }
 
 /**
- * Create an active user on the main site with a known password.
+ * Create an active user on the main site with a known password. The role is
+ * subscriber unless `role` asks for a site administrator, who is not a super
+ * admin.
  *
  * @return array|\WP_Error
  */
 function create_user( \WP_REST_Request $request ) {
+	$role = (string) ( $request->get_param( 'role' ) ?: 'subscriber' );
+
+	if ( ! in_array( $role, [ 'subscriber', 'administrator' ], true ) ) {
+		return new \WP_Error( 'hmua_tests_role', 'Use subscriber or administrator.', [ 'status' => 400 ] );
+	}
+
 	$user_id = wp_insert_user( [
 		'user_login' => sanitize_user( (string) $request->get_param( 'user_login' ), true ),
 		'user_email' => sanitize_email( (string) $request->get_param( 'user_email' ) ),
 		'user_pass'  => (string) $request->get_param( 'user_pass' ),
-		'role'       => 'subscriber',
+		'role'       => $role,
 	] );
 
 	if ( is_wp_error( $user_id ) ) {
 		return $user_id;
 	}
 
-	add_user_to_blog( get_current_blog_id(), $user_id, 'subscriber' );
+	add_user_to_blog( get_current_blog_id(), $user_id, $role );
 
 	return [ 'id' => $user_id ];
 }

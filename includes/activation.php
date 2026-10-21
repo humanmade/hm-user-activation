@@ -209,14 +209,12 @@ function process( string $key, bool $auto_login ): void {
 	$needs_password_setup = (bool) apply_filters( 'hm_user_activation_needs_password_setup', $needs_password_setup, $user_id, $meta );
 
 	// Generate a password reset key so the user can set their own password.
+	// Uses the password reset page once it is published, otherwise core's wp-login.php.
 	$reset_url = '';
 	if ( $user && $needs_password_setup ) {
-		$reset_page_id = (int) get_option( 'hm_activation_password_reset_page_id' );
-		if ( $reset_page_id ) {
-			$reset_key = get_password_reset_key( $user );
-			if ( ! is_wp_error( $reset_key ) ) {
-				$reset_url = PasswordReset\build_reset_url( $reset_key, $user->user_login );
-			}
+		$reset_key = get_password_reset_key( $user );
+		if ( ! is_wp_error( $reset_key ) ) {
+			$reset_url = PasswordReset\build_reset_url( $reset_key, $user->user_login );
 		}
 	}
 
@@ -272,14 +270,17 @@ function process( string $key, bool $auto_login ): void {
 
 /**
  * Activation link lifetime in hours. 0 means links never expire.
+ *
+ * @param object|null $signup The signup row being checked, if known.
  */
-function get_link_lifetime(): int {
+function get_link_lifetime( ?object $signup = null ): int {
 	/**
 	 * Filters the activation link lifetime.
 	 *
-	 * @param int $hours Lifetime in hours. 0 means links never expire.
+	 * @param int         $hours  Lifetime in hours. 0 means links never expire.
+	 * @param object|null $signup The signup row being checked, or null if unknown.
 	 */
-	return max( 0, (int) apply_filters( 'hm_user_activation_link_lifetime', (int) get_option( 'hm_activation_link_lifetime', 0 ) ) );
+	return max( 0, (int) apply_filters( 'hm_user_activation_link_lifetime', (int) get_option( 'hm_activation_link_lifetime', 0 ), $signup ) );
 }
 
 /**
@@ -295,7 +296,7 @@ function get_signup_by_key( string $key ): ?object {
  * Whether a signup was registered longer ago than the activation link lifetime.
  */
 function is_expired( object $signup ): bool {
-	$lifetime = get_link_lifetime();
+	$lifetime = get_link_lifetime( $signup );
 	if ( ! $lifetime ) {
 		return false;
 	}

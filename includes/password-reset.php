@@ -320,11 +320,24 @@ function process_password_change( string $key, string $login, string $pass1, str
  * Redirect "forgot password?" links to our custom reset page.
  */
 function filter_lostpassword_url( string $url, string $redirect ): string {
-	$page_id = (int) get_option( 'hm_activation_password_reset_page_id' );
-	if ( ! $page_id ) {
+	$page_url = page_url();
+	if ( ! $page_url ) {
 		return $url;
 	}
-	return get_permalink( $page_id ) ?: $url;
+
+	/**
+	 * Filters whether lostpassword_url() points at the password reset page.
+	 *
+	 * Only applies when a published password reset page is set. Return false
+	 * to leave the lost password link alone across the site.
+	 *
+	 * @param bool $filter Whether to rewrite the URL. Default true.
+	 */
+	if ( ! apply_filters( 'hm_user_activation_filter_lostpassword_url', true ) ) {
+		return $url;
+	}
+
+	return $page_url;
 }
 
 /**
@@ -362,11 +375,33 @@ function filter_block_visibility( string $block_content, array $parsed_block ): 
 // -------------------------------------------------------------------------
 
 /**
+ * Permalink of the password reset page, or '' when none is set or it isn't published.
+ */
+function page_url(): string {
+	$page_id = (int) get_option( 'hm_activation_password_reset_page_id' );
+	if ( ! $page_id || get_post_status( $page_id ) !== 'publish' ) {
+		return '';
+	}
+
+	return (string) get_permalink( $page_id );
+}
+
+/**
  * Build a password reset URL pointing to our custom page (or wp-login.php as fallback).
  */
 function build_reset_url( string $key, string $login ): string {
-	$page_id = (int) get_option( 'hm_activation_password_reset_page_id' );
-	$base    = $page_id ? ( get_permalink( $page_id ) ?: '' ) : network_site_url( 'wp-login.php?action=rp' );
+	$base = page_url();
+
+	if ( ! $base ) {
+		/**
+		 * Filters the base URL for set-password links when there is no published password reset page.
+		 *
+		 * @param string $url   Base URL. Default core's wp-login.php?action=rp.
+		 * @param string $key   Password reset key.
+		 * @param string $login User login.
+		 */
+		$base = (string) apply_filters( 'hm_user_activation_reset_url_fallback', network_site_url( 'wp-login.php?action=rp' ), $key, $login );
+	}
 
 	return add_query_arg( [
 		'key'   => rawurlencode( $key ),

@@ -438,6 +438,18 @@ function field_login_page_select( array $args ): void {
 		'<p class="description">%s</p>',
 		wp_kses( __( 'Used for the <code>{login_url}</code> placeholder in the welcome email, the Activation: Login URL binding and the default Log in button. Defaults to the WordPress login URL if none selected.', 'hm-user-activation' ), [ 'code' => [] ] )
 	);
+
+	$legacy_url = (string) get_option( 'hm_activation_login_url' );
+	if ( ! $value && $legacy_url ) {
+		printf(
+			'<p class="description">%s</p>',
+			esc_html( sprintf(
+				/* translators: %s: log in URL saved by version 1.0.0 */
+				__( 'No page is selected, so the log in URL saved by version 1.0.0 is used: %s', 'hm-user-activation' ),
+				$legacy_url
+			) )
+		);
+	}
 }
 
 function field_password_reset_page_select( array $args ): void {
@@ -462,7 +474,7 @@ function field_password_reset_page_select( array $args ): void {
 
 	printf(
 		'<p class="description">%s</p>',
-		esc_html__( 'Page containing the password reset block. Used for "forgot password?" links and as the destination after account activation.', 'hm-user-activation' )
+		esc_html__( 'Page containing the password reset block. Once published, used for "forgot password?" links and as the destination after account activation.', 'hm-user-activation' )
 	);
 }
 

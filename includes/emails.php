@@ -140,14 +140,17 @@ function send_activation_email( string $user_email, string $key, string $usernam
 }
 
 /**
- * Login URL: the configured log in page if set, otherwise wp_login_url().
+ * Login URL: the configured log in page if set, then a 1.0.0 log in URL the
+ * upgrade could not turn into a page, then wp_login_url().
  *
  * @param int   $user_id Activated user ID, if known.
  * @param array $meta    Signup meta, if known.
  */
 function get_login_url( int $user_id = 0, array $meta = [] ): string {
 	$login_page_id = (int) get_option( 'hm_activation_login_page_id' );
-	$login_url     = ( $login_page_id ? get_permalink( $login_page_id ) : false ) ?: wp_login_url();
+	$login_url     = ( $login_page_id ? get_permalink( $login_page_id ) : false )
+		?: (string) get_option( 'hm_activation_login_url' )
+		?: wp_login_url();
 
 	/**
 	 * Filters the login URL used after activation and in the welcome email.

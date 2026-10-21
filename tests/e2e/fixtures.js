@@ -175,10 +175,11 @@ function createHelpers(
 		/**
 		 * Create an active user with a known password.
 		 *
-		 * @param {string} password Password to set.
+		 * @param {string}                     password Password to set.
+		 * @param {'subscriber'|'administrator'} [role]   Role on the main site. Administrators are not super admins.
 		 * @return {Promise<{login: string, email: string, password: string}>} The user.
 		 */
-		async createUser( password ) {
+		async createUser( password, role = 'subscriber' ) {
 			const identity = this.newIdentity();
 
 			await getJson(
@@ -187,6 +188,7 @@ function createHelpers(
 						user_login: identity.login,
 						user_email: identity.email,
 						user_pass: password,
+						role,
 					},
 				} )
 			);
@@ -206,6 +208,79 @@ function createHelpers(
 					form: { name, value: String( value ) },
 				} )
 			);
+		},
+
+		/**
+		 * Read one of the plugin's options.
+		 *
+		 * @param {string} name Option name.
+		 * @return {Promise<{exists: boolean, value: *}>} The stored value.
+		 */
+		async getOption( name ) {
+			return getJson( await request.get( routeUrl( 'option', { name } ) ) );
+		},
+
+		/**
+		 * Delete one of the plugin's options.
+		 *
+		 * @param {string} name Option name.
+		 */
+		async deleteOption( name ) {
+			await getJson(
+				await request.delete( routeUrl( 'option', { name } ) )
+			);
+		},
+
+		/**
+		 * Create a page. The content is saved as given, with no filtering.
+		 *
+		 * @param {Object}            page            Page.
+		 * @param {string}            page.title      Title.
+		 * @param {string}            page.slug       Slug.
+		 * @param {string}            page.content    Block markup.
+		 * @param {'publish'|'draft'} [page.status]   Status. Defaults to publish.
+		 * @return {Promise<number>} Page id.
+		 */
+		async createPage( { title, slug, content, status = 'publish' } ) {
+			const data = await getJson(
+				await request.post( routeUrl( 'page' ), {
+					form: { title, slug, content, status },
+				} )
+			);
+
+			return data.id;
+		},
+
+		/**
+		 * Read a page.
+		 *
+		 * @param {number|string} id Page id.
+		 * @return {Promise<{id: number, status: string, link: string, content: string}>} The page.
+		 */
+		async getPage( id ) {
+			return getJson(
+				await request.get( routeUrl( 'page', { id: String( id ) } ) )
+			);
+		},
+
+		/**
+		 * Delete a page for good.
+		 *
+		 * @param {number|string} id Page id.
+		 */
+		async deletePage( id ) {
+			await getJson(
+				await request.delete( routeUrl( 'page', { id: String( id ) } ) )
+			);
+		},
+
+		/**
+		 * Report on the deprecated 1.0.0 classes.
+		 *
+		 * @return {Promise<Object>} Report from the helper route.
+		 */
+		async getShims() {
+			return getJson( await request.get( routeUrl( 'shims' ) ) );
 		},
 
 		/**
@@ -286,6 +361,53 @@ function createHelpers(
 const test = base.extend( {
 	hmua: async ( { request, baseURL }, use ) => {
 		await use( createHelpers( request, baseURL ) );
+	},
+
+	/**
+	 * Change plugin options for one test. Every option touched is put back
+	 * to its original value, or deleted if it did not exist, afterwards.
+	 */
+	options: async ( { hmua }, use ) => {
+		const originals = new Map();
+
+		async function remember( name ) {
+			if ( ! originals.has( name ) ) {
+				originals.set( name, await hmua.getOption( name ) );
+			}
+		}
+
+		await use( {
+			/**
+			 * Remember options that code under test may change or create.
+			 *
+			 * @param {...string} names Option names.
+			 */
+			async track( ...names ) {
+				for ( const name of names ) {
+					await remember( name );
+				}
+			},
+
+			async set( name, value ) {
+				await remember( name );
+				await hmua.setOption( name, value );
+			},
+
+			async remove( name ) {
+				await remember( name );
+				await hmua.deleteOption( name );
+			},
+
+			get: ( name ) => hmua.getOption( name ),
+		} );
+
+		for ( const [ name, original ] of originals ) {
+			if ( original.exists ) {
+				await hmua.setOption( name, original.value );
+			} else {
+				await hmua.deleteOption( name );
+			}
+		}
 	},
 } );
 

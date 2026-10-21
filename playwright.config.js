@@ -41,6 +41,16 @@ module.exports = defineConfig( {
 	projects: [
 		{
 			name: 'chromium',
+			testIgnore: /back-compat\.spec\.js/,
+			use: { ...devices[ 'Desktop Chrome' ] },
+		},
+		// Changes site-wide options, so it runs alone after everything else.
+		// If any chromium test fails, this project is reported as skipped,
+		// not run. Use --no-deps to run it on its own.
+		{
+			name: 'back-compat',
+			testMatch: /back-compat\.spec\.js/,
+			dependencies: [ 'chromium' ],
 			use: { ...devices[ 'Desktop Chrome' ] },
 		},
 	],

@@ -22,7 +22,7 @@ New accounts become members of the site they registered on, with the site's defa
 
 **Post-activation welcome email** — optionally send a follow-up email once the account is activated. It never contains a password: users get a one-time password reset link to set their own instead. Independently configurable from the activation email.
 
-**Password reset flow** — a site-level reset page handles both requesting a reset link and setting a new password, and `wp_lostpassword_url()` is filtered to point at it.
+**Password reset flow** — a site-level reset page handles both requesting a reset link and setting a new password, and once it is published `wp_lostpassword_url()` is filtered to point at it.
 
 **Auto-login** — optionally log users in immediately after a successful activation (admin-controlled).
 
@@ -54,7 +54,7 @@ New accounts become members of the site they registered on, with the site's defa
 
 ## Link lifetime and resending
 
-**Link lifetime** — set **Activation link lifetime** in the settings to a number of hours. Links older than that show an "expired" error instead of activating. `0` (the default) means links never expire. Sites can also use the `hm_user_activation_link_lifetime` filter. Expiry is only enforced by the plugin's activation page. On a site where the plugin isn't active, or when no activation page is set, core's `wp-activate.php` still accepts the key.
+**Link lifetime** — set **Activation link lifetime** in the settings to a number of hours. Links older than that show an "expired" error instead of activating. `0` (the default) means links never expire. Sites can also use the `hm_user_activation_link_lifetime` filter, which also gets the signup row. Expiry is only enforced by the plugin's activation page. On a site where the plugin isn't active, or when no activation page is set, core's `wp-activate.php` still accepts the key.
 
 **Resend block** — the `Resend Activation Form` block (`hm-user-activation/resend-form`) asks for an email address, then redirects back to the page with `?hm_activation_resent=1`. The reply is the same whether or not a registration exists, and a page refresh doesn't send another email. The default activation page includes the block in the errors group, so expired links lead straight to it, and adds an `Activation Link Resent` group that shows "If there's a pending registration for that address, we've sent a new activation link." only after that redirect. The group only shows on the redirect, and not when an activation result is also showing. The default registration page has the block and the group too, for someone whose earlier signup is still pending. Existing pages need the block and the group added by hand.
 
@@ -76,7 +76,7 @@ Signups are network-wide, but the link lifetime and the email templates are per 
 
 ## Hooks
 
-- `hm_user_activation_link_lifetime` — filter the link lifetime in hours.
+- `hm_user_activation_link_lifetime` — filter the link lifetime in hours (`int $hours, object|null $signup`). The signup row lets a site limit expiry to some signups. It is `null` when unknown.
 - `hm_user_activation_resend_interval` — filter the minimum seconds between resends for a signup (`int $seconds`).
 - `hm_user_activation_resend_limit` — filter how many times a signup can be resent (`int $limit`).
 - `hm_user_activation_resend_ip_limit` — filter resend requests per hour per IP address (`int $limit`).
@@ -84,7 +84,9 @@ Signups are network-wide, but the link lifetime and the email templates are per 
 - `hm_user_activation_can_resend` — filter whether a resend is allowed (`bool $can_resend, object $signup`).
 - `hm_user_activation_needs_password_setup` — override whether the user is sent to set a password (`bool $needs, int $user_id, array $meta`). The default is `true` only while the user still has the password core generated during activation, so a password set by a hook on `wpmu_activate_user` skips the step automatically. Returning `false` for a user who only has the generated password leaves them unable to log in until they use "lost password". Returning `true` for a user who already has a password just sends them through a harmless reset. When `false`, no reset link is generated. If the welcome email is still sent, `{password_reset_link}` in it becomes the login URL, and if the welcome email body setting is empty a default body without a password step is used. On the default activation page the "Set your password" button is dropped when there is no reset link, and a "Log in" button is shown.
 - `hm_user_activation_send_welcome_email` — filter whether the welcome email is sent; defaults to the setting (`bool $send, int $user_id, array $meta`).
-- `hm_user_activation_login_url` — filter the login URL used for the `Activation: Login URL` binding and `{login_url}` in the welcome email. It is the **Log in page** setting if set, otherwise `wp_login_url()` (`string $url, int $user_id, array $meta`).
+- `hm_user_activation_login_url` — filter the login URL used for the `Activation: Login URL` binding and `{login_url}` in the welcome email. It is the **Log in page** setting if set, then a 1.0.0 log in URL that the upgrade could not turn into a page, then `wp_login_url()` (`string $url, int $user_id, array $meta`).
+- `hm_user_activation_reset_url_fallback` — filter the base URL of set-password links when there is no published password reset page. The default is core's `wp-login.php?action=rp` (`string $url, string $key, string $login`).
+- `hm_user_activation_filter_lostpassword_url` — when a published password reset page is set, the plugin points every `wp_lostpassword_url()` link on the site at it. Return `false` to turn that off (`bool $filter`, default `true`).
 - `hm_user_activation_activated` — action fired after a successful activation (`int $user_id, array $meta`). It fires before auto-login, so the new user is not yet the current user.
 
 ## Setup
@@ -94,10 +96,41 @@ Signups are network-wide, but the link lifetime and the email templates are per 
 3. Go to **Settings → User Activation** and configure:
    - **Registration page** — the generated draft page is selected for you. Registration links only point at it once it is published.
    - **Activation page** — the generated draft page is selected for you. Publish it before you save this screen, because this list only shows published pages.
-   - **Password reset page** — the generated draft page is selected for you. Publish it before you save this screen, because this list only shows published pages.
+   - **Password reset page** — the generated draft page is selected for you. Publish it before you save this screen, because this list only shows published pages. Until it is published, set-password links go to core's `wp-login.php`.
    - **Log in page** — used as `{login_url}` in the welcome email.
    - Email templates for the activation, welcome and password reset emails.
 4. Users who register will receive your custom activation email linking to the configured page.
+
+## Upgrading from 1.0.0
+
+Version 1.1 renamed some settings and removed the password bindings. The plugin upgrades this data once on each site. The upgrade runs when the plugin is activated (on the main site only when it is network-activated), and the first time someone who can manage options opens the site's dashboard. It never runs on front-end or admin-ajax requests. Sites that went from 1.0.0 to 1.1.x get their 1.0.0 sender and log in URL back, because 1.1.x ignored them. The `hm_activation_db_version` option records that it has run. Version 1.0.0 stored no network options, so nothing changes at network level.
+
+The upgrade does these things:
+
+- It moves the activation email sender (`hm_activation_email_from_name`, `hm_activation_email_from`) to the **From name** and **From email** settings. If there was no activation email sender, it uses the welcome email sender (`hm_activation_welcome_email_from_name`, `hm_activation_welcome_email_from`). All emails now share one sender, so a different welcome email sender is lost. A sender that is already set is kept. The old options are deleted.
+- It turns the 1.0.0 log in URL (`hm_activation_login_url`) into the **Log in page** setting when the URL is a page on the site. A URL that is not a page, for example on another domain, is kept and still used when no log in page is selected. The settings screen shows this URL. Select a log in page to replace it, or delete the `hm_activation_login_url` option to go back to the WordPress login URL.
+- It replaces `{password}` in the welcome email subject and body with `{password_reset_link}`. The 1.0.0 line `Password: {password}` becomes `Set your password: {password_reset_link}`.
+- It updates pages and synced patterns that use the removed `Activation: Password` and `Activation: Password (formatted)` bindings. The first of these blocks becomes the "Set your password" and "Log in" buttons from the default activation page. The others are removed. The rest of the page stays the same. When revisions are enabled, the old version is saved as a revision.
+- If the site has an activation page but no password reset page, it creates a draft one. Set-password links go to core's `wp-login.php` until you publish it.
+
+It does not add the resend form or the `Activation Link Resent` group to an existing activation page. Add them by hand if you want them.
+
+To upgrade every site at once, without opening each dashboard, use WP-CLI:
+
+```bash
+wp site list --field=url | xargs -I {} wp --url={} eval 'if ( function_exists( "HM\\UserActivation\\Upgrade\\upgrade" ) ) { HM\UserActivation\Upgrade\upgrade(); }'
+```
+
+Code cannot be upgraded this way, so these stay:
+
+- The 1.0.0 classes `Activation`, `Emails`, `Block_Bindings`, `Page_Setup` and `Admin_Settings` in the `HM\UserActivation` namespace still exist with their public static methods. They are deprecated and call the new functions. `Activation::get_password()` always returns an empty string, `Activation::get_result()` leaves out `reset_url`, and `Emails::send_welcome_email()` ignores its `$password` argument.
+- Hooks now use namespaced functions, so a 1.0.0-style `remove_filter( 'wpmu_signup_user_notification', [ 'HM\UserActivation\Emails', 'intercept_user_notification' ] )` no longer matches. Use the function name instead, for example `remove_filter( 'wpmu_signup_user_notification', 'HM\UserActivation\Emails\intercept_user_notification' )`. The functions that 1.0.0 hooked as class methods are now:
+  - `HM\UserActivation\Emails\intercept_user_notification` and `HM\UserActivation\Emails\intercept_blog_notification` (`wpmu_signup_user_notification`, `wpmu_signup_blog_notification`)
+  - `HM\UserActivation\Activation\maybe_redirect_wp_activate` (`init`, priority 1), `HM\UserActivation\Activation\maybe_process_activation` (`template_redirect`) and `HM\UserActivation\Activation\filter_block_visibility` (`render_block`)
+  - `HM\UserActivation\BlockBindings\register_sources` (`init`)
+  - `HM\UserActivation\Admin\add_settings_page` (`admin_menu`) and `HM\UserActivation\Admin\register_settings` (`admin_init`)
+
+**Mail link scanners** — an account is activated when its activation link is opened. A mail link scanner that follows links can activate the account before the user does. The user then sees the "already active" error with the resend form. If auto-login is on, the scanner gets the login cookie, not the user. This has always been the case.
 
 ## Security behaviour
 
