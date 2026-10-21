@@ -12,8 +12,10 @@ on:
 permissions:
   contents: read
 
+# One group for every run, whatever ref started it, because they all push
+# the same release branch. A newer run always builds the same or newer main.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name }}
+  group: release-branch
   cancel-in-progress: true
 
 jobs:
