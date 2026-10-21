@@ -50,8 +50,9 @@ function upgrade(): void {
 		return;
 	}
 
-	if ( $version < 1 ) {
-		upgrade_from_1_0_0();
+	// Leave the version alone when a step fails, so it is tried again.
+	if ( $version < 1 && ! upgrade_from_1_0_0() ) {
+		return;
 	}
 
 	update_option( DB_VERSION_OPTION, DB_VERSION );
@@ -59,18 +60,22 @@ function upgrade(): void {
 
 /**
  * Move 1.0.0 settings and pages to their current form.
+ *
+ * @return bool False if a page could not be saved.
  */
-function upgrade_from_1_0_0(): void {
+function upgrade_from_1_0_0(): bool {
 	migrate_sender_options();
 	migrate_login_url();
 	migrate_password_placeholder();
-	migrate_password_bindings();
+	$saved = migrate_password_bindings();
 
 	// Only on sites that use the plugin, so unused sites don't get a draft page.
 	$activation_page_id = (int) get_option( 'hm_activation_page_id' );
 	if ( $activation_page_id && get_post( $activation_page_id ) ) {
 		PageSetup\create_password_reset_page();
 	}
+
+	return $saved;
 }
 
 /**
@@ -160,10 +165,13 @@ function migrate_password_placeholder(): void {
  * becomes the "Set your password" and "Log in" buttons, and any others are
  * removed. Everything else on the page is kept. Pages that already have a
  * set-password button only lose the password blocks.
+ *
+ * @return bool False if a page could not be saved.
  */
-function migrate_password_bindings(): void {
+function migrate_password_bindings(): bool {
 	global $wpdb;
 
+	$saved    = true;
 	$post_ids = $wpdb->get_col( $wpdb->prepare(
 		"SELECT ID FROM {$wpdb->posts} WHERE post_type IN ( 'page', 'wp_block' ) AND post_status NOT IN ( 'trash', 'auto-draft', 'inherit' ) AND post_content LIKE %s",
 		'%' . $wpdb->esc_like( '"source":"hm-user-activation/password' ) . '%'
@@ -195,6 +203,9 @@ function migrate_password_bindings(): void {
 			continue;
 		}
 
+		// Keep the 1.0.0 content, which may not have a revision yet.
+		wp_save_post_revision( $post->ID );
+
 		// The content is already on the site, so skip kses: on multisite it
 		// would strip markup a site admin cannot add but a super admin did.
 		$kses = has_filter( 'content_save_pre', 'wp_filter_post_kses' );
@@ -202,15 +213,21 @@ function migrate_password_bindings(): void {
 			kses_remove_filters();
 		}
 
-		wp_update_post( wp_slash( [
+		$result = wp_update_post( wp_slash( [
 			'ID'           => $post->ID,
 			'post_content' => $content,
-		] ) );
+		] ), true );
 
 		if ( $kses ) {
 			kses_init_filters();
 		}
+
+		if ( is_wp_error( $result ) || ! $result ) {
+			$saved = false;
+		}
 	}
+
+	return $saved;
 }
 
 /**
