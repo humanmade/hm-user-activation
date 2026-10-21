@@ -333,7 +333,7 @@ On submit, the plugin makes the username with `HM\UserActivation\Registration\ge
 
 It never looks at whether the email address has an account, so the result says nothing about who is registered. The name goes through `wpmu_validate_user_signup()` like any typed username, so core's rules and every validation hook still apply.
 
-The setting is read from the first Registration Form block in the registration page's content, including blocks inside other blocks and inside synced patterns. A posted `user_name` is ignored when the field is off. If validation fails on the username, the message shows in the generic error slot (`#hm-registration-generic-error`), because there is no field to show it next to.
+The first Registration Form block in the registration page's content decides. That includes blocks inside other blocks, and inside synced patterns that are published and not password protected. Later form blocks on the page do not change it. A posted `user_name` is ignored when the page's setting is off. A form that posts no username at all gets a generated one too, for example a form in a template that has **Ask for a username** off. A form that posts an empty username still gets core's error. A site that renders the block from PHP can use the `hm_user_activation_registration_show_username` filter to set the field for the whole site. If validation fails on the username, the message shows in the generic error slot (`#hm-registration-generic-error`), because there is no field to show it next to.
 
 
 ## Extending the forms
