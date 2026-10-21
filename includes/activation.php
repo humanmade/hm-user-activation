@@ -229,6 +229,12 @@ function process( string $key, bool $auto_login ): void {
 	 */
 	$needs_password_setup = (bool) apply_filters( 'hm_user_activation_needs_password_setup', $needs_password_setup, $user_id, $meta );
 
+	// An existing account keeps its own password, and its reset link must not
+	// be shown to whoever holds this key.
+	if ( $existing_user ) {
+		$needs_password_setup = false;
+	}
+
 	// Generate a password reset key so the user can set their own password.
 	// Uses the password reset page once it is published, otherwise core's wp-login.php.
 	$reset_url = '';
