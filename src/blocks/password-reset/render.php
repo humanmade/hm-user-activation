@@ -61,7 +61,7 @@ if ( $strength_meter ) {
 				<?php echo $strength_meter ? ' aria-describedby="hm-pass1-strength"' : ''; ?>
 			>
 			<?php if ( $strength_meter ) : ?>
-				<button type="button" class="button hm-password-toggle" aria-controls="hm-pass1 hm-pass2" aria-pressed="false" data-show="<?php esc_attr_e( 'Show password', 'hm-user-activation' ); ?>" data-hide="<?php esc_attr_e( 'Hide password', 'hm-user-activation' ); ?>" hidden><?php esc_html_e( 'Show password', 'hm-user-activation' ); ?></button>
+				<button type="button" class="button hm-password-toggle" aria-controls="hm-pass1 hm-pass2" data-show="<?php esc_attr_e( 'Show password', 'hm-user-activation' ); ?>" data-hide="<?php esc_attr_e( 'Hide password', 'hm-user-activation' ); ?>" hidden><?php esc_html_e( 'Show password', 'hm-user-activation' ); ?></button>
 			<?php endif; ?>
 		</p>
 

@@ -5,7 +5,7 @@
  * wp.passwordStrength) and shows its result the way core's user-profile.js does.
  */
 
-const CLASSES = [ 'short', 'bad', 'good', 'strong', 'pw-weak' ];
+const CLASSES = [ 'short', 'bad', 'good', 'strong' ];
 
 /**
  * Set up the meter and toggle on one form.
@@ -28,6 +28,12 @@ function init( form ) {
 	} catch ( e ) {
 		extra = [];
 	}
+
+	// Split into words as core's userInputDisallowedList() does, so parts of
+	// a login or email address count too.
+	extra = extra
+		.flatMap( ( value ) => String( value ).toLowerCase().split( /\W/ ) )
+		.filter( ( word ) => word.length >= 4 );
 
 	result.hidden = false;
 	toggle.hidden = false;
@@ -92,13 +98,11 @@ function init( form ) {
 		}
 
 		result.classList.add( className );
-		if (
-			strength !== 5 &&
-			( className === 'short' || className === 'bad' )
-		) {
-			result.classList.add( 'pw-weak' );
+
+		// Rewriting the same text would make screen readers repeat it.
+		if ( result.textContent !== text ) {
+			result.textContent = text;
 		}
-		result.textContent = text;
 	}
 
 	const onInput = () => {
@@ -118,13 +122,19 @@ function init( form ) {
 
 		pass1.type = show ? 'text' : 'password';
 		pass2.type = show ? 'text' : 'password';
-		toggle.setAttribute( 'aria-pressed', show ? 'true' : 'false' );
 		toggle.textContent = show ? toggle.dataset.hide : toggle.dataset.show;
 	} );
 }
 
-document.addEventListener( 'DOMContentLoaded', () => {
+function start() {
 	document
 		.querySelectorAll( 'form[data-hm-password-strength]' )
 		.forEach( init );
-} );
+}
+
+// The script can be loaded late, for example by a script optimiser.
+if ( document.readyState === 'loading' ) {
+	document.addEventListener( 'DOMContentLoaded', start );
+} else {
+	start();
+}

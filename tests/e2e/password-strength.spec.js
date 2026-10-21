@@ -137,18 +137,15 @@ for ( const form of FORMS ) {
 			await page.locator( form.pass1 ).fill( 'abc' );
 			await expect( result ).toHaveText( 'Very weak' );
 			await expect( result ).toHaveClass( /\bshort\b/ );
-			await expect( result ).toHaveClass( /\bpw-weak\b/ );
 
 			// zxcvbn loads after the page, so the meter catches up.
 			await page.locator( form.pass1 ).fill( STRONG );
 			await expect( result ).toHaveText( 'Strong' );
 			await expect( result ).toHaveClass( /\bstrong\b/ );
-			await expect( result ).not.toHaveClass( /\bpw-weak\b/ );
 
 			await page.locator( form.pass2 ).fill( 'something-different' );
 			await expect( result ).toHaveText( 'Mismatch' );
 			await expect( result ).toHaveClass( /\bshort\b/ );
-			await expect( result ).not.toHaveClass( /\bpw-weak\b/ );
 		} );
 
 		test( 'the toggle shows and hides both passwords', async ( {
@@ -160,7 +157,6 @@ for ( const form of FORMS ) {
 
 			const toggle = page.locator( '.hm-password-toggle' );
 			await expect( toggle ).toHaveText( 'Show password' );
-			await expect( toggle ).toHaveAttribute( 'aria-pressed', 'false' );
 
 			await toggle.click();
 			await expect( page.locator( form.pass1 ) ).toHaveAttribute(
@@ -171,7 +167,6 @@ for ( const form of FORMS ) {
 				'type',
 				'text'
 			);
-			await expect( toggle ).toHaveAttribute( 'aria-pressed', 'true' );
 			await expect( toggle ).toHaveText( 'Hide password' );
 
 			await toggle.click();
@@ -183,7 +178,6 @@ for ( const form of FORMS ) {
 				'type',
 				'password'
 			);
-			await expect( toggle ).toHaveAttribute( 'aria-pressed', 'false' );
 			await expect( toggle ).toHaveText( 'Show password' );
 		} );
 

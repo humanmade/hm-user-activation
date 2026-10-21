@@ -20,6 +20,8 @@ required=(
 	includes/upgrade.php
 	build/variations/index.js
 	build/variations/index.asset.php
+	build/password-strength/index.js
+	build/password-strength/index.asset.php
 )
 
 for block in activation-form login-form password-reset registration-form resend-form; do
