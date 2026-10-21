@@ -137,14 +137,14 @@ function process( string $user_name, string $user_email ): void {
 		return;
 	}
 
-	// In same response mode, core's "already registered" and "pending" email
-	// errors are taken out before any other validation hook sees them.
+	// In same response mode, the errors that say whether the email address is
+	// known are taken out before any other validation hook sees them.
 	$email_state = '';
 	$hide_state  = static function ( $result ) use ( &$email_state ) {
 		if ( ! is_array( $result ) ) {
 			return $result;
 		}
-		$email_state = strip_email_state( $result );
+		$email_state = strip_account_state( $result );
 		return $result;
 	};
 
@@ -285,49 +285,74 @@ function hides_account_state(): bool {
 }
 
 /**
- * Take core's "already registered" and "pending activation" errors for the
- * email address out of a wpmu_validate_user_signup() result.
+ * Take the errors that say whether an email address is known out of a
+ * wpmu_validate_user_signup() result.
+ *
+ * These are core's "already registered" and "pending activation" errors for
+ * the email address, and its "reserved" error for a username held by a
+ * pending signup. The last one matters because a new address reserves the
+ * username it signed up with and a known address does not, so a second
+ * signup with that username would tell them apart. In this mode two pending
+ * signups can share a username, and the first to activate gets it.
  *
  * Runs first on the wpmu_validate_user_signup filter, so every error so far
- * is core's. Core makes these two checks last for the email address, in this
- * order, so their messages are the last ones under user_email. The checks are
- * repeated here to know how many to take out. Messages are not compared,
- * because core's wording changes between versions.
+ * is core's. Core makes these checks last for each field, in this order, so
+ * their messages are the last ones under user_email and user_name. The checks
+ * are repeated here to know how many to take out, and the rest are left in
+ * place so the response does not change. Messages are not compared, because
+ * core's wording changes between versions.
  *
  * @param array $result Validation result. Its errors are changed in place.
- * @return string 'account', 'pending', or '' when the address has neither.
+ * @return string 'account' or 'pending' for a known email address, or ''.
  */
-function strip_email_state( array &$result ): string {
+function strip_account_state( array &$result ): string {
 	global $wpdb;
 
-	$email = (string) ( $result['user_email'] ?? '' );
-	if ( $email === '' || ! $result['errors'] instanceof \WP_Error ) {
+	$errors = $result['errors'] ?? null;
+	if ( ! $errors instanceof \WP_Error ) {
 		return '';
 	}
 
-	$account = (bool) email_exists( $email );
+	$email = (string) ( $result['user_email'] ?? '' );
+	$login = (string) ( $result['user_name'] ?? '' );
 
 	// Core has already deleted signups older than two days, so a row left here
 	// is one it reported.
-	$pending = (bool) $wpdb->get_var(
+	$account  = $email !== '' && email_exists( $email );
+	$pending  = $email !== '' && $wpdb->get_var(
 		$wpdb->prepare( "SELECT signup_id FROM {$wpdb->signups} WHERE user_email = %s LIMIT 1", $email )
 	);
+	$reserved = $login !== '' && $wpdb->get_var(
+		$wpdb->prepare( "SELECT signup_id FROM {$wpdb->signups} WHERE user_login = %s LIMIT 1", $login )
+	);
 
-	$found = (int) $account + (int) $pending;
-	if ( ! $found ) {
-		return '';
+	drop_last_errors( $errors, 'user_email', (int) $account + (int) (bool) $pending );
+	drop_last_errors( $errors, 'user_name', (int) (bool) $reserved );
+
+	if ( $account ) {
+		return 'account';
 	}
 
-	$errors   = $result['errors'];
-	$messages = $errors->get_error_messages( 'user_email' );
-	$data     = $errors->get_error_data( 'user_email' );
+	return $pending ? 'pending' : '';
+}
 
-	$errors->remove( 'user_email' );
-	foreach ( array_slice( $messages, 0, max( 0, count( $messages ) - $found ) ) as $message ) {
-		$errors->add( 'user_email', $message, $data );
+/**
+ * Remove the last messages for an error code, keeping the order of the rest.
+ *
+ * @param \WP_Error $errors Errors to change.
+ * @param string    $code   Error code.
+ * @param int       $count  How many messages to remove from the end.
+ */
+function drop_last_errors( \WP_Error $errors, string $code, int $count ): void {
+	if ( $count < 1 || empty( $errors->errors[ $code ] ) ) {
+		return;
 	}
 
-	return $account ? 'account' : 'pending';
+	array_splice( $errors->errors[ $code ], -min( $count, count( $errors->errors[ $code ] ) ) );
+
+	if ( ! $errors->errors[ $code ] ) {
+		$errors->remove( $code );
+	}
 }
 
 /**

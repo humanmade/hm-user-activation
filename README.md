@@ -315,11 +315,11 @@ With it on:
 - An existing account gets a short email with its username, a log in link and a password reset link. It is sent at most once an hour for each address.
 - A pending signup gets its activation email again. The usual resend limits apply, so sometimes nothing is sent.
 - Errors the person can fix still show, for example an invalid email address, a failed security check or a field another plugin checks. When the address is taken and another field is wrong, only the other error shows. The response depends only on what the person typed, not on who has an account.
-- Username errors still show, including "already exists" and "reserved". They say nothing about an email address. Pick usernames that don't give away an email address, or don't use this form if they do.
+- A username that already belongs to an account still gets its error. A username that is only held by a pending signup does not. A new address holds the username it signed up with and a known address does not, so that error would give the address away. Two pending signups can then have the same username. The first to activate gets it, and the other gets an error when they activate.
 
 The confirmation says an activation link was sent. In this mode, that is not exactly true for known addresses. If you want neutral words, replace the bound paragraph in the **Registration Success** group with your own text, such as "Check your inbox to continue."
 
-The response time can still differ a little between a new address and a known one.
+The response time can still differ a little between a new address and a known one. `hm_user_activation_registered` does not fire for a known address, so code on that hook must not change the response, for example with a redirect, or it gives the address away.
 
 ## Extending the forms
 
