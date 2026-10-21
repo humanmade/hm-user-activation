@@ -6,6 +6,9 @@
 	"license": "GPL-2.0-or-later",
 	"private": true,
 	"scripts": {
+		"build": "wp-scripts build --webpack-copy-php",
+		"start": "wp-scripts start --webpack-copy-php",
+		"lint:js": "wp-scripts lint-js src",
 		"wp-env": "wp-env",
 		"env:setup": "node tests/bin/setup-env.js",
 		"test:e2e": "wp-scripts test-playwright",
@@ -17,6 +20,7 @@
 		"@types/node": "^20.17.10",
 		"@wordpress/e2e-test-utils-playwright": "^1.50.0",
 		"@wordpress/env": "^9.0.0",
-		"@wordpress/scripts": "^27.0.0"
+		"@wordpress/scripts": "^27.0.0",
+		"typescript": "^5.9.3"
 	}
 }

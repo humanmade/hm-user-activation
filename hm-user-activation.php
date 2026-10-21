@@ -81,21 +81,28 @@ Upgrade\bootstrap();
 add_action( 'init', __NAMESPACE__ . '\\register_blocks' );
 
 function register_blocks(): void {
-	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/registration-form' );
-	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/activation-form' );
-	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/password-reset' );
-	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/login-form' );
-	register_block_type( HM_USER_ACTIVATION_DIR . 'blocks/resend-form' );
+	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/registration-form' );
+	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/activation-form' );
+	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/password-reset' );
+	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/login-form' );
+	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/resend-form' );
 }
 
 add_action( 'enqueue_block_editor_assets', __NAMESPACE__ . '\\enqueue_editor_assets' );
 
 function enqueue_editor_assets(): void {
-	$asset = require HM_USER_ACTIVATION_DIR . 'js/variations.asset.php';
+	$asset_file = HM_USER_ACTIVATION_DIR . 'build/variations/index.asset.php';
+
+	// A source checkout has no build yet, so there is nothing to enqueue.
+	if ( ! file_exists( $asset_file ) ) {
+		return;
+	}
+
+	$asset = require $asset_file;
 
 	wp_enqueue_script(
 		'hm-user-activation-variations',
-		HM_USER_ACTIVATION_URL . 'js/variations.js',
+		HM_USER_ACTIVATION_URL . 'build/variations/index.js',
 		$asset['dependencies'],
 		$asset['version'],
 		true

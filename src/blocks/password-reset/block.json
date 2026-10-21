@@ -1,13 +1,13 @@
 {
 	"$schema": "https://schemas.wp.org/trunk/block.json",
 	"apiVersion": 3,
-	"name": "hm-user-activation/form",
-	"version": "1.2.0",
-	"title": "Activation Form",
+	"name": "hm-user-activation/password-reset",
+	"version": "1.0.0",
+	"title": "Password Reset Form",
 	"category": "common",
-	"icon": "admin-users",
-	"description": "Displays the account activation form. Shows a key input (or hidden field when the key is in the URL), an auto-login checkbox, and a submit button.",
-	"keywords": [ "activation", "signup", "user", "form", "register" ],
+	"icon": "lock",
+	"description": "Displays the password reset form. Shows a 'request reset link' form by default, or a 'set new password' form when a valid reset key is present in the URL.",
+	"keywords": [ "password", "reset", "login", "forgot" ],
 	"supports": {
 		"html": false,
 		"reusable": false,
@@ -23,6 +23,6 @@
 	},
 	"textdomain": "hm-user-activation",
 	"editorScript": "file:./index.js",
-	"style": "file:./style.css",
+	"style": "file:./style-index.css",
 	"render": "file:./render.php"
 }
