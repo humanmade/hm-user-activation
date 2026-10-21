@@ -559,12 +559,13 @@ function get_signup_state( \WP_REST_Request $request ) {
 	$path       = (string) $request->get_param( 'path' );
 
 	$signup = $wpdb->get_row(
-		$wpdb->prepare( "SELECT active FROM {$wpdb->signups} WHERE user_login = %s ORDER BY signup_id DESC", $user_login )
+		$wpdb->prepare( "SELECT active, meta FROM {$wpdb->signups} WHERE user_login = %s ORDER BY signup_id DESC", $user_login )
 	);
 
 	return [
 		'signup_exists' => (bool) $signup,
 		'signup_active' => $signup ? (bool) (int) $signup->active : false,
+		'meta'          => $signup ? ( maybe_unserialize( $signup->meta ) ?: null ) : null,
 		'user_exists'   => (bool) username_exists( $user_login ),
 		'site_exists'   => $path && (bool) $wpdb->get_var(
 			$wpdb->prepare( "SELECT blog_id FROM {$wpdb->blogs} WHERE domain = %s AND path = %s", get_network()->domain, $path )
@@ -866,5 +867,9 @@ function get_user( \WP_REST_Request $request ): array {
 		'activation_meta' => get_user_meta( $user->ID, 'hmua_test_activated_meta', true ) ?: null,
 		'first_name'      => (string) get_user_meta( $user->ID, 'first_name', true ),
 		'complete_keys'   => get_user_meta( $user->ID, 'hmua_test_complete_field_keys', true ) ?: null,
+		'core_fields'     => [
+			'company' => (string) get_user_meta( $user->ID, 'hmua_company', true ),
+			'terms'   => (string) get_user_meta( $user->ID, 'hmua_terms', true ),
+		],
 	];
 }
