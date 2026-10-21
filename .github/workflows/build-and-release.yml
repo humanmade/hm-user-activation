@@ -7,12 +7,15 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# One group for every run, whatever ref started it, because they all push
+# the same release branch. A newer run always builds the same or newer main.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name }}
+  group: release-branch
   cancel-in-progress: true
 
 jobs:
@@ -25,6 +28,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The action checks out again with its own credentials. Two
+          # Authorization headers make GitHub reject the fetch.
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
