@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "hm-user-activation/resend-form",
+  "version": "1.3.0",
+  "title": "Resend Activation Form",
+  "category": "common",
+  "icon": "email",
+  "description": "Lets a user request a new activation link by email address. The response is the same whether or not a pending registration exists.",
+  "keywords": [
+    "activation",
+    "resend",
+    "email",
+    "link",
+    "expired"
+  ],
+  "supports": {
+    "html": false,
+    "reusable": false,
+    "inserter": true,
+    "color": {
+      "background": true,
+      "text": true
+    },
+    "spacing": {
+      "padding": true,
+      "margin": true
+    }
+  },
+  "textdomain": "hm-user-activation",
+  "editorScript": "file:./index.js",
+  "render": "file:./render.php"
+}
