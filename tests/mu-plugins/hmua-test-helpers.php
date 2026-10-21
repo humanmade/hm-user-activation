@@ -134,6 +134,55 @@ add_action(
 );
 
 /**
+ * A stand-in for a site adding its own field to the "Complete your account"
+ * form: with the `hmua_test_complete_fields` cookie set, ask for a first name,
+ * require it, and save it. The keys of the fields the action receives are
+ * recorded in user meta so specs can check what was passed.
+ */
+add_action(
+	'hm_user_activation_complete_account_fields',
+	static function ( $signup, $meta, $fields ): void {
+		if ( empty( $_COOKIE['hmua_test_complete_fields'] ) ) {
+			return;
+		}
+
+		printf(
+			'<p><label for="hmua-first-name">First name</label> <input type="text" id="hmua-first-name" name="first_name" value="%s"></p>',
+			esc_attr( (string) ( $fields['first_name'] ?? '' ) )
+		);
+	},
+	10,
+	3
+);
+
+add_filter(
+	'hm_user_activation_complete_account_errors',
+	static function ( $errors, $fields ) {
+		if ( ! empty( $_COOKIE['hmua_test_complete_fields'] ) && trim( (string) ( $fields['first_name'] ?? '' ) ) === '' ) {
+			$errors->add( 'hmua_test_first_name', 'Test: first name is required.' );
+		}
+
+		return $errors;
+	},
+	10,
+	2
+);
+
+add_action(
+	'hm_user_activation_complete_account',
+	static function ( int $user_id, array $meta, array $fields ): void {
+		if ( empty( $_COOKIE['hmua_test_complete_fields'] ) ) {
+			return;
+		}
+
+		update_user_meta( $user_id, 'first_name', sanitize_text_field( (string) ( $fields['first_name'] ?? '' ) ) );
+		update_user_meta( $user_id, 'hmua_test_complete_field_keys', array_keys( $fields ) );
+	},
+	10,
+	3
+);
+
+/**
  * Mark core's form hooks so specs can tell they fired.
  */
 add_action(
@@ -652,7 +701,7 @@ function create_user( \WP_REST_Request $request ) {
 }
 
 /**
- * Look up a user by login, reporting whether they exist and their roles.
+ * Look up a user by login, reporting whether they exist, their roles and test meta.
  */
 function get_user( \WP_REST_Request $request ): array {
 	$user = get_user_by( 'login', (string) $request->get_param( 'login' ) );
@@ -668,5 +717,7 @@ function get_user( \WP_REST_Request $request ): array {
 		'roles'           => array_values( $user->roles ),
 		'is_member'       => is_user_member_of_blog( $user->ID, get_current_blog_id() ),
 		'activation_meta' => get_user_meta( $user->ID, 'hmua_test_activated_meta', true ) ?: null,
+		'first_name'      => (string) get_user_meta( $user->ID, 'first_name', true ),
+		'complete_keys'   => get_user_meta( $user->ID, 'hmua_test_complete_field_keys', true ) ?: null,
 	];
 }

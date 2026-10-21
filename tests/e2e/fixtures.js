@@ -352,6 +352,22 @@ function createHelpers(
 				},
 			] );
 		},
+
+		/**
+		 * Add the test first name field to the "Complete your account" form
+		 * for one browser context.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context Browser context.
+		 */
+		async useCompleteFields( context ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_complete_fields',
+					value: '1',
+					url: baseURL,
+				},
+			] );
+		},
 	};
 }
 
