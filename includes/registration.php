@@ -250,7 +250,7 @@ function find_form_block( array $blocks, array &$seen = [] ): ?array {
 			$ref     = (int) ( $block['attrs']['ref'] ?? 0 );
 			$pattern = $ref && ! in_array( $ref, $seen, true ) ? get_post( $ref ) : null;
 			$seen[]  = $ref;
-			$inner   = $pattern && $pattern->post_type === 'wp_block' && $pattern->post_status === 'publish' && ! post_password_required( $pattern )
+			$inner   = $pattern && $pattern->post_type === 'wp_block' && $pattern->post_status === 'publish' && empty( $pattern->post_password )
 				? parse_blocks( $pattern->post_content )
 				: [];
 		}
