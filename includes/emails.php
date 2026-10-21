@@ -228,6 +228,28 @@ function send_password_reset_email( \WP_User $user, string $key ): void {
 	);
 }
 
+/**
+ * The "you already have an account" email, sent when the registration form
+ * hides account state and someone registers with an existing address.
+ *
+ * @param \WP_User $user The account with the address.
+ * @return array{to: string, subject: string, message: string, headers: string[]}
+ */
+function existing_account_email( \WP_User $user ): array {
+	$placeholders = build_placeholders( [
+		'{username}'         => $user->user_login,
+		'{login_url}'        => get_login_url( $user->ID ),
+		'{lostpassword_url}' => wp_lostpassword_url(),
+	] );
+
+	return [
+		'to'      => $user->user_email,
+		'subject' => build_subject( default_existing_account_subject(), $placeholders ),
+		'message' => replace( default_existing_account_body(), $placeholders ),
+		'headers' => build_headers(),
+	];
+}
+
 // -------------------------------------------------------------------------
 // Helpers
 // -------------------------------------------------------------------------
@@ -360,6 +382,21 @@ function default_welcome_body_without_password(): string {
 		__( 'Your account at {site_name} is ready.', 'hm-user-activation' ),
 		__( 'Your username is: {username}', 'hm-user-activation' ),
 		__( 'Log in at: {login_url}', 'hm-user-activation' ),
+		__( '{site_name}', 'hm-user-activation' ),
+	] );
+}
+
+function default_existing_account_subject(): string {
+	return __( 'You already have an account at {site_name}', 'hm-user-activation' );
+}
+
+function default_existing_account_body(): string {
+	return implode( "\n\n", [
+		__( 'Hi {username},', 'hm-user-activation' ),
+		__( 'Someone tried to register at {site_name} with your email address. You already have an account, so no new account was made.', 'hm-user-activation' ),
+		__( 'Log in at: {login_url}', 'hm-user-activation' ),
+		__( 'If you forgot your password, reset it here: {lostpassword_url}', 'hm-user-activation' ),
+		__( 'If this was not you, you can safely ignore this email.', 'hm-user-activation' ),
 		__( '{site_name}', 'hm-user-activation' ),
 	] );
 }

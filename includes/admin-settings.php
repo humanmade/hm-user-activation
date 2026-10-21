@@ -58,6 +58,12 @@ function register_settings(): void {
 		'default'           => false,
 	] );
 
+	register_setting( OPTION_GROUP, 'hm_activation_registration_hide_account_state', [
+		'type'              => 'boolean',
+		'sanitize_callback' => 'rest_sanitize_boolean',
+		'default'           => false,
+	] );
+
 	register_setting( OPTION_GROUP, 'hm_activation_link_lifetime', [
 		'type'              => 'integer',
 		'sanitize_callback' => static fn( $value ): int => max( 0, (int) $value ),
@@ -129,6 +135,19 @@ function register_sections_and_fields(): void {
 		PAGE_SLUG,
 		'hm_activation_general',
 		[ 'label_for' => 'hm_activation_registration_page_id' ]
+	);
+
+	add_settings_field(
+		'hm_activation_registration_hide_account_state',
+		__( 'Same response for known addresses', 'hm-user-activation' ),
+		__NAMESPACE__ . '\\field_checkbox',
+		PAGE_SLUG,
+		'hm_activation_general',
+		[
+			'label_for'   => 'hm_activation_registration_hide_account_state',
+			'option'      => 'hm_activation_registration_hide_account_state',
+			'description' => __( 'The registration form does not say whether an email address already has an account or a pending signup. It shows the usual confirmation. An existing account gets an email with log in and password reset links, and a pending signup gets its activation email again.', 'hm-user-activation' ),
+		]
 	);
 
 	add_settings_field(

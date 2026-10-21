@@ -15,6 +15,9 @@
 
 namespace HM\UserActivation\Registration;
 
+use HM\UserActivation\Emails;
+use HM\UserActivation\Resend;
+
 function bootstrap(): void {
 	// Redirect wp-signup.php requests to our registration page.
 	add_action( 'before_signup_header', __NAMESPACE__ . '\\maybe_redirect_wp_signup' );
@@ -134,7 +137,27 @@ function process( string $user_name, string $user_email ): void {
 		return;
 	}
 
+	// In same response mode, core's "already registered" and "pending" email
+	// errors are taken out before any other validation hook sees them.
+	$email_state = '';
+	$hide_state  = static function ( $result ) use ( &$email_state ) {
+		if ( ! is_array( $result ) ) {
+			return $result;
+		}
+		$email_state = strip_email_state( $result );
+		return $result;
+	};
+
+	$hide = hides_account_state();
+	if ( $hide ) {
+		add_filter( 'wpmu_validate_user_signup', $hide_state, PHP_INT_MIN );
+	}
+
 	$validation = wpmu_validate_user_signup( $user_name, $user_email );
+
+	if ( $hide ) {
+		remove_filter( 'wpmu_validate_user_signup', $hide_state, PHP_INT_MIN );
+	}
 
 	/** @var \WP_Error $errors */
 	$errors = $validation['errors'];
@@ -161,6 +184,26 @@ function process( string $user_name, string $user_email ): void {
 
 	$user_name  = $validation['user_name'];
 	$user_email = $validation['user_email'];
+
+	// The address already has an account or a pending signup. Respond as if a
+	// signup was made, and tell the address's owner by email instead.
+	if ( $email_state ) {
+		if ( $email_state === 'account' ) {
+			$user = get_user_by( 'email', $user_email );
+			if ( $user ) {
+				send_existing_account_email( $user );
+			}
+		} else {
+			Resend\resend( $user_email );
+		}
+
+		result( [
+			'success'    => true,
+			'user_name'  => $user_name,
+			'user_email' => $user_email,
+		] );
+		return;
+	}
 
 	/**
 	 * Filter the meta stored against the signup.
@@ -223,6 +266,112 @@ function is_registration_enabled(): bool {
 function active_signup(): string {
 	/** This filter is documented in wp-signup.php */
 	return (string) apply_filters( 'wpmu_active_signup', get_site_option( 'registration', 'none' ) );
+}
+
+/**
+ * Whether the form responds the same way whether or not an email address
+ * already has an account or a pending signup.
+ */
+function hides_account_state(): bool {
+	/**
+	 * Filters whether the registration form hides which email addresses have an account or a pending signup.
+	 *
+	 * @param bool $hide Defaults to the "Same response for known addresses" setting.
+	 */
+	return (bool) apply_filters(
+		'hm_user_activation_registration_hide_account_state',
+		(bool) get_option( 'hm_activation_registration_hide_account_state', false )
+	);
+}
+
+/**
+ * Take core's "already registered" and "pending activation" errors for the
+ * email address out of a wpmu_validate_user_signup() result.
+ *
+ * Runs first on the wpmu_validate_user_signup filter, so every error so far
+ * is core's. Core makes these two checks last for the email address, in this
+ * order, so their messages are the last ones under user_email. The checks are
+ * repeated here to know how many to take out. Messages are not compared,
+ * because core's wording changes between versions.
+ *
+ * @param array $result Validation result. Its errors are changed in place.
+ * @return string 'account', 'pending', or '' when the address has neither.
+ */
+function strip_email_state( array &$result ): string {
+	global $wpdb;
+
+	$email = (string) ( $result['user_email'] ?? '' );
+	if ( $email === '' || ! $result['errors'] instanceof \WP_Error ) {
+		return '';
+	}
+
+	$account = (bool) email_exists( $email );
+
+	// Core has already deleted signups older than two days, so a row left here
+	// is one it reported.
+	$pending = (bool) $wpdb->get_var(
+		$wpdb->prepare( "SELECT signup_id FROM {$wpdb->signups} WHERE user_email = %s LIMIT 1", $email )
+	);
+
+	$found = (int) $account + (int) $pending;
+	if ( ! $found ) {
+		return '';
+	}
+
+	$errors   = $result['errors'];
+	$messages = $errors->get_error_messages( 'user_email' );
+	$data     = $errors->get_error_data( 'user_email' );
+
+	$errors->remove( 'user_email' );
+	foreach ( array_slice( $messages, 0, max( 0, count( $messages ) - $found ) ) as $message ) {
+		$errors->add( 'user_email', $message, $data );
+	}
+
+	return $account ? 'account' : 'pending';
+}
+
+/**
+ * Tell an account's owner that someone tried to register with its email
+ * address. Sent at most once per interval for each address.
+ *
+ * @param \WP_User $user The account with the address.
+ */
+function send_existing_account_email( \WP_User $user ): void {
+	/**
+	 * Filters the minimum time between "you already have an account" emails to one address.
+	 *
+	 * @param int $seconds Default one hour. 0 turns the limit off.
+	 */
+	$interval = max( 0, (int) apply_filters( 'hm_user_activation_existing_account_email_interval', HOUR_IN_SECONDS ) );
+	$throttle = 'hmua_account_notice_' . md5( strtolower( $user->user_email ) );
+
+	if ( $interval && get_site_transient( $throttle ) ) {
+		return;
+	}
+
+	/**
+	 * Filters the "you already have an account" email.
+	 *
+	 * @param array|false $email {
+	 *     The email, or false to send nothing.
+	 *
+	 *     @type string   $to      Recipient.
+	 *     @type string   $subject Subject.
+	 *     @type string   $message Plain text body.
+	 *     @type string[] $headers Mail headers.
+	 * }
+	 * @param \WP_User    $user  The account with the address.
+	 */
+	$email = apply_filters( 'hm_user_activation_existing_account_email', Emails\existing_account_email( $user ), $user );
+	if ( ! is_array( $email ) || empty( $email['to'] ) ) {
+		return;
+	}
+
+	if ( $interval ) {
+		set_site_transient( $throttle, 1, $interval );
+	}
+
+	wp_mail( $email['to'], (string) ( $email['subject'] ?? '' ), (string) ( $email['message'] ?? '' ), $email['headers'] ?? [] );
 }
 
 // -------------------------------------------------------------------------
