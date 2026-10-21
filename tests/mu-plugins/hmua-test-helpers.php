@@ -46,11 +46,6 @@ add_filter(
 );
 
 /**
- * Lift the per-IP resend limit: every test request comes from one address.
- */
-add_filter( 'hm_user_activation_resend_ip_limit', '__return_zero' );
-
-/**
  * Let a signup opt out of the password step by carrying `skip_password_setup`
  * in its meta.
  */
