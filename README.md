@@ -135,7 +135,7 @@ add_action( 'hm_user_activation_complete_account', function ( $user_id, $meta, $
 
 ## Installation
 
-The plugin needs its compiled `build/` directory. Every release tag and release ZIP includes it, so install a release:
+The plugin needs its compiled `build/` directory. Every release tag and release ZIP from 1.2.0 on includes it, so install a release. Earlier releases need no build.
 
 - **Composer** — `composer require humanmade/hm-user-activation`. Composer installs from the release tags, which contain `build/`. To try the latest unreleased code, require `dev-release` instead. The `release` branch is `main` plus a fresh build after every merge.
 - **ZIP** — download `hm-user-activation-X.Y.Z.zip` from the GitHub release and upload it as a plugin.
@@ -315,7 +315,7 @@ If a CDN or WAF fronts the site, such as Cloudflare, Fastly or CloudFront, put t
 
 ## Development
 
-The block and editor sources live in `src/`. `npm run build` compiles them to `build/`, which is git-ignored. `npm run start` rebuilds when a file changes. The plugin loads its blocks and editor scripts from `build/`, so a source checkout needs a build before the blocks work. Until then, the admin screens show a notice. On `main`, the plugin version is the placeholder `__VERSION__`. The Release workflow replaces it in each tag.
+The block and editor sources live in `src/`. `npm run build` compiles them to `build/`, which is git-ignored. `npm run start` rebuilds when a file changes. The plugin loads its blocks and editor scripts from `build/`, so a source checkout needs a build before the blocks work. Until then, the admin screens show a notice. On `main` and the `release` branch, the plugin version is the placeholder `__VERSION__`. The Release workflow replaces it in each tag.
 
 ## Testing
 
@@ -388,6 +388,6 @@ If the run fails after the tag was pushed, don't run it again, because the tag a
 
 Packagist picks up the new tag by itself. Tags are never moved or deleted, because Packagist does not accept a changed tag. If a release is wrong, release a new patch version.
 
-The **Build to release branch** workflow needs the `release` branch to exist. It was created once from `main` with `git push origin main:release`. If it is ever deleted, create it the same way.
+The **Build to release branch** workflow needs the `release` branch to exist. It was created once from `main` with `git push origin main:release`. If it is ever deleted, create it the same way, then merge a change to `main`: the workflow fails while `release` and `main` point at the same commit.
 
 What ships is set by the `export-ignore` rules in `.gitattributes`. The **Package** workflow builds and checks a ZIP the same way on every pull request, so a change that would break the release fails there first.
