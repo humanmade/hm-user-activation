@@ -204,26 +204,106 @@ test.describe( 'Same response for known addresses', () => {
 		await hmua.mail.waitFor( account.email, { subject: ACCOUNT_SUBJECT } );
 	} );
 
-	test( 'a username held only by a pending signup can be used again', async ( {
+	test( 'a username given with a known address is reserved like one given with a new address', async ( {
 		page,
 		hmua,
 	} ) => {
-		const pending = await hmua.createSignup();
-		const other = hmua.newIdentity();
-		hmua.track( pending.login );
+		const account = await hmua.createUser( 'existing-user-password-1!' );
 
-		await page.goto( REGISTRATION_URL );
-		await register( page, { login: pending.login, email: other.email } );
+		/**
+		 * Register a username with a new address, then again with a second new
+		 * address, and return what the second attempt shows.
+		 *
+		 * @param {string} login First address's username.
+		 * @param {string} email Address for the first attempt.
+		 * @return {Promise<{summary: string, inline: string}>} Error texts, with usernames and addresses replaced.
+		 */
+		async function probe( login, email ) {
+			const second = hmua.newIdentity();
+			hmua.track( login );
 
-		await expect( page.locator( '.hm-registration-success' ) ).toContainText(
-			`We have sent an activation link to ${ other.email }.`
+			await page.goto( REGISTRATION_URL );
+			await register( page, { login, email } );
+			await expect( page.locator( '.hm-registration-success' ) ).toBeVisible();
+
+			await page.goto( REGISTRATION_URL );
+			await register( page, { login, email: second.email } );
+
+			const inline = page.locator( '#hm-user-name-error' );
+			await expect( inline ).toBeVisible();
+			await expect( page.locator( '.hm-registration-success' ) ).toHaveCount( 0 );
+
+			const clean = ( text ) =>
+				text
+					.split( login )
+					.join( '{login}' )
+					.split( second.email )
+					.join( '{email}' )
+					.replace( /\s+/g, ' ' )
+					.trim();
+
+			return {
+				summary: clean(
+					await page.locator( '.hm-registration-errors' ).innerText()
+				),
+				inline: clean( await inline.innerText() ),
+			};
+		}
+
+		const forNewAddress = await probe(
+			hmua.newIdentity().login,
+			hmua.newIdentity().email
 		);
-		await expect( page.locator( '#hm-user-name-error' ) ).toHaveCount( 0 );
-
-		await hmua.mail.waitFor( other.email, { subject: ACTIVATION_SUBJECT } );
-		expect( ( await hmua.getSignupState( pending.login ) ).signup_exists ).toBe(
-			true
+		const forKnownAddress = await probe(
+			hmua.newIdentity().login,
+			account.email
 		);
+
+		expect( forNewAddress.inline ).toContain( 'currently reserved' );
+		expect( forKnownAddress ).toEqual( forNewAddress );
+	} );
+
+	test( 'a banned email domain gives the same errors for known and unknown addresses', async ( {
+		page,
+		hmua,
+	} ) => {
+		const taken = await hmua.createUser( 'existing-user-password-1!' );
+		const known = hmua.newIdentity();
+		const knownEmail = known.email.replace( 'example.com', 'hmua-banned.test' );
+		const unknownEmail = hmua
+			.newIdentity()
+			.email.replace( 'example.com', 'hmua-banned.test' );
+		await hmua.createUser(
+			'existing-user-password-1!',
+			'subscriber',
+			known.login,
+			knownEmail
+		);
+
+		await hmua.banEmailDomain( 'hmua-banned.test' );
+
+		try {
+			const texts = [];
+
+			for ( const email of [ knownEmail, unknownEmail ] ) {
+				await page.goto( REGISTRATION_URL );
+				await register( page, { login: taken.login, email } );
+				await expect( page.locator( '#hm-user-name-error' ) ).toBeVisible();
+
+				texts.push(
+					( await page.locator( '.hm-registration-errors' ).innerText() )
+						.split( email )
+						.join( '{email}' )
+						.replace( /\s+/g, ' ' )
+						.trim()
+				);
+			}
+
+			expect( texts[ 0 ] ).toContain( 'You cannot use that email address' );
+			expect( texts[ 1 ] ).toBe( texts[ 0 ] );
+		} finally {
+			await hmua.unbanEmailDomain();
+		}
 	} );
 
 	test( "core's sign-up form posts for a known address go to the registration page", async ( {

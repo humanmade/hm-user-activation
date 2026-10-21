@@ -358,6 +358,19 @@ add_action(
 			],
 		] );
 
+		register_rest_route( 'hmua-tests/v1', '/banned-domain', [
+			[
+				'methods'             => 'POST',
+				'callback'            => __NAMESPACE__ . '\\ban_email_domain',
+				'permission_callback' => $open,
+			],
+			[
+				'methods'             => 'DELETE',
+				'callback'            => __NAMESPACE__ . '\\unban_email_domain',
+				'permission_callback' => $open,
+			],
+		] );
+
 		register_rest_route( 'hmua-tests/v1', '/page', [
 			[
 				'methods'             => 'GET',
@@ -593,6 +606,7 @@ function cleanup_signup( \WP_REST_Request $request ) {
 	require_once ABSPATH . 'wp-admin/includes/user.php';
 
 	$wpdb->delete( $wpdb->signups, [ 'user_login' => $user_login ] );
+	delete_site_transient( 'hmua_reserved_' . md5( strtolower( $user_login ) ) );
 
 	$blog_id = $path ? (int) $wpdb->get_var(
 		$wpdb->prepare( "SELECT blog_id FROM {$wpdb->blogs} WHERE domain = %s AND path = %s", get_network()->domain, $path )
@@ -609,6 +623,51 @@ function cleanup_signup( \WP_REST_Request $request ) {
 	}
 
 	return [ 'cleaned' => true ];
+}
+
+const BANNED_DOMAIN = 'hmua-banned.test';
+const BANNED_PREVIOUS_OPTION = 'hmua_test_banned_domains_previous';
+
+/**
+ * Make the network ban hmua-banned.test addresses, remembering the previous
+ * banned domains so they can be put back.
+ *
+ * @return array|\WP_Error
+ */
+function ban_email_domain( \WP_REST_Request $request ) {
+	if ( (string) $request->get_param( 'domain' ) !== BANNED_DOMAIN ) {
+		return new \WP_Error( 'hmua_tests_banned_domain', 'Only ' . BANNED_DOMAIN . ' can be banned.', [ 'status' => 400 ] );
+	}
+
+	if ( false === get_site_option( BANNED_PREVIOUS_OPTION, false ) ) {
+		$previous = get_site_option( 'banned_email_domains', false );
+		update_site_option( BANNED_PREVIOUS_OPTION, [ $previous === false ? null : $previous ] );
+	}
+
+	update_site_option( 'banned_email_domains', [ BANNED_DOMAIN ] );
+
+	return [ 'banned' => BANNED_DOMAIN ];
+}
+
+/**
+ * Put the banned email domains back as they were before ban_email_domain().
+ *
+ * @return array
+ */
+function unban_email_domain(): array {
+	$previous = get_site_option( BANNED_PREVIOUS_OPTION, false );
+
+	if ( is_array( $previous ) ) {
+		if ( $previous[0] === null ) {
+			delete_site_option( 'banned_email_domains' );
+		} else {
+			update_site_option( 'banned_email_domains', $previous[0] );
+		}
+
+		delete_site_option( BANNED_PREVIOUS_OPTION );
+	}
+
+	return [ 'banned' => null ];
 }
 
 /**

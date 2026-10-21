@@ -235,13 +235,18 @@ function createHelpers(
 		 * @param {string}                       password Password to set.
 		 * @param {'subscriber'|'administrator'} [role]   Role on the main site. Administrators are not super admins.
 		 * @param {string}                       [login]  Username to use instead of a new one.
+		 * @param {string}                       [email]  Email address to use instead of a new one.
 		 * @return {Promise<{login: string, email: string, password: string}>} The user.
 		 */
-		async createUser( password, role = 'subscriber', login ) {
+		async createUser( password, role = 'subscriber', login, email ) {
 			const identity = this.newIdentity();
 
 			if ( login ) {
 				identity.login = login;
+			}
+
+			if ( email ) {
+				identity.email = email;
 			}
 
 			await getJson(
@@ -357,6 +362,29 @@ function createHelpers(
 				await request.post( routeUrl( 'registration' ), {
 					form: { value },
 				} )
+			);
+		},
+
+		/**
+		 * Ban an email domain network-wide. Only hmua-banned.test is allowed.
+		 * Call `unbanEmailDomain()` to put the previous setting back.
+		 *
+		 * @param {string} domain Domain to ban.
+		 */
+		async banEmailDomain( domain ) {
+			await getJson(
+				await request.post( routeUrl( 'banned-domain' ), {
+					form: { domain },
+				} )
+			);
+		},
+
+		/**
+		 * Put the network's banned email domains back as they were.
+		 */
+		async unbanEmailDomain() {
+			await getJson(
+				await request.delete( routeUrl( 'banned-domain' ) )
 			);
 		},
 
