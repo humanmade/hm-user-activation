@@ -44,7 +44,7 @@ for file in "${required[@]}"; do
 	fi
 done
 
-forbidden="$( grep -E "^${prefix}(\.[^/]+|src/|tests/|node_modules/|vendor/|package\.json|package-lock\.json|webpack\.config\.js|playwright\.config\.js|phpcs\.xml|composer\.lock|REVIEW\.md)" <<< "$files" || true )"
+forbidden="$( grep -E "^${prefix}(\.[^/]+|src/|tests/|node_modules/|vendor/|package\.json|package-lock\.json|webpack\.config\.js|playwright\.config\.js|phpcs\.xml|phpunit\.xml\.dist|composer\.lock|REVIEW\.md)" <<< "$files" || true )"
 
 if [ -n "$forbidden" ]; then
 	echo "::error::${zip} contains files that should not ship:"
