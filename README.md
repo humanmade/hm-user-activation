@@ -103,14 +103,14 @@ Signups are network-wide, but the link lifetime and the email templates are per 
 
 ## Upgrading from 1.0.0
 
-Version 1.1 renamed some settings and removed the password bindings. The plugin upgrades this data once on each site. The upgrade runs when the plugin is activated, and the first time someone who can manage options opens the site's dashboard. It never runs on front-end or admin-ajax requests. The `hm_activation_db_version` option records that it has run. Version 1.0.0 stored no network options, so nothing changes at network level.
+Version 1.1 renamed some settings and removed the password bindings. The plugin upgrades this data once on each site. The upgrade runs when the plugin is activated (on the main site only when it is network-activated), and the first time someone who can manage options opens the site's dashboard. It never runs on front-end or admin-ajax requests. Sites that went from 1.0.0 to 1.1.x get their 1.0.0 sender and log in URL back, because 1.1.x ignored them. The `hm_activation_db_version` option records that it has run. Version 1.0.0 stored no network options, so nothing changes at network level.
 
 The upgrade does these things:
 
 - It moves the activation email sender (`hm_activation_email_from_name`, `hm_activation_email_from`) to the **From name** and **From email** settings. If there was no activation email sender, it uses the welcome email sender (`hm_activation_welcome_email_from_name`, `hm_activation_welcome_email_from`). All emails now share one sender, so a different welcome email sender is lost. A sender that is already set is kept. The old options are deleted.
-- It turns the 1.0.0 log in URL (`hm_activation_login_url`) into the **Log in page** setting when the URL is a page on the site. A URL that is not a page, for example on another domain, is kept and still used when no log in page is selected. The settings screen shows this URL.
+- It turns the 1.0.0 log in URL (`hm_activation_login_url`) into the **Log in page** setting when the URL is a page on the site. A URL that is not a page, for example on another domain, is kept and still used when no log in page is selected. The settings screen shows this URL. Select a log in page to replace it, or delete the `hm_activation_login_url` option to go back to the WordPress login URL.
 - It replaces `{password}` in the welcome email subject and body with `{password_reset_link}`. The 1.0.0 line `Password: {password}` becomes `Set your password: {password_reset_link}`.
-- It updates pages and synced patterns that use the removed `Activation: Password` and `Activation: Password (formatted)` bindings. The first of these blocks becomes the "Set your password" and "Log in" buttons from the default activation page. The others are removed. The rest of the page stays the same, and the old version is kept as a revision.
+- It updates pages and synced patterns that use the removed `Activation: Password` and `Activation: Password (formatted)` bindings. The first of these blocks becomes the "Set your password" and "Log in" buttons from the default activation page. The others are removed. The rest of the page stays the same. When revisions are enabled, the old version is saved as a revision.
 - If the site has an activation page but no password reset page, it creates a draft one. Set-password links go to core's `wp-login.php` until you publish it.
 
 It does not add the resend form or the `Activation Link Resent` group to an existing activation page. Add them by hand if you want them.

@@ -474,7 +474,7 @@ function field_password_reset_page_select( array $args ): void {
 
 	printf(
 		'<p class="description">%s</p>',
-		esc_html__( 'Page containing the password reset block. Used for "forgot password?" links and as the destination after account activation.', 'hm-user-activation' )
+		esc_html__( 'Page containing the password reset block. Once published, used for "forgot password?" links and as the destination after account activation.', 'hm-user-activation' )
 	);
 }
 

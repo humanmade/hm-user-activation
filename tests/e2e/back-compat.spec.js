@@ -183,6 +183,8 @@ async function signInAs( browser, baseURL, user ) {
 	const page = await context.newPage();
 
 	await page.goto( '/wp-login.php' );
+	// wp-login.php focuses and selects this field on a timer after load.
+	await expect( page.locator( '#user_login' ) ).toBeFocused();
 	await page.locator( '#user_login' ).fill( user.login );
 	await page.locator( '#user_pass' ).fill( user.password );
 	await page.locator( '#wp-submit' ).click();
