@@ -420,6 +420,22 @@ function createHelpers(
 		},
 
 		/**
+		 * Turn off the password strength meter and show/hide toggle for one
+		 * browser context.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context Browser context.
+		 */
+		async useNoStrengthMeter( context ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_no_strength_meter',
+					value: '1',
+					url: baseURL,
+				},
+			] );
+		},
+
+		/**
 		 * Make every account report that it needs a password set-up, for one
 		 * browser context.
 		 *
