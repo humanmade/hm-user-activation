@@ -74,6 +74,46 @@ The resend count is removed from the signup before the plugin's activation page 
 
 Signups are network-wide, but the link lifetime and the email templates are per site. A resend from another site uses that site's settings.
 
+## Complete your account mode
+
+By default, opening an activation link activates the account straight away, and the user then sets a password from a link. Turn on **Complete your account** in the settings to change this. It is off by default.
+
+With it on:
+
+- An activation link shows a form instead of activating. The form shows the email address from the signup, which can't be changed, and asks for a password and its confirmation.
+- The account is only activated when the user submits the form and everything is valid. Opening or reloading the link never activates it. A mail link scanner that follows the link only sees the form.
+- The password is checked as on the reset form and `wp-login.php`, so `check_passwords` and `validate_password_reset` run and password policy plugins apply. The account does not exist yet, so `validate_password_reset` gets a user with ID `0` that only has the login and email from the signup.
+- An unknown or already used link shows the error group with the resend form. Both get the same message. An expired link says it has expired.
+- After activation the user is sent to the log in URL with `?hm_activation_complete=1`. The `Login Form` block and `wp-login.php` then show "Your account is ready. Log in."
+- The user is **not** logged in automatically, and the **Auto-login on activation** setting is ignored. Logging in through the log in form means anything a site runs at login, such as two-factor enrolment, still runs.
+- There is no set-password step. The welcome email, if it is on, uses the log in URL for `{password_reset_link}`, and the default body has no password step. `hm_user_activation_needs_password_setup` is not used. The password the user chose replaces any password that a `wpmu_activate_user` hook set.
+
+The form is the `Activation Form` block, so existing activation pages keep working in both modes, and the default activation page needs no change.
+
+Sites can add their own fields, such as names or consent checkboxes:
+
+```php
+add_action( 'hm_user_activation_complete_account_fields', function ( $signup, $meta, $fields ) {
+	printf(
+		'<p><label for="first-name">First name</label> <input id="first-name" name="first_name" value="%s"></p>',
+		esc_attr( $fields['first_name'] ?? '' )
+	);
+}, 10, 3 );
+
+add_filter( 'hm_user_activation_complete_account_errors', function ( $errors, $fields ) {
+	if ( trim( $fields['first_name'] ?? '' ) === '' ) {
+		$errors->add( 'first_name', 'Please enter your first name.' );
+	}
+	return $errors;
+}, 10, 2 );
+
+add_action( 'hm_user_activation_complete_account', function ( $user_id, $meta, $fields ) {
+	update_user_meta( $user_id, 'first_name', sanitize_text_field( $fields['first_name'] ) );
+}, 10, 3 );
+```
+
+`$fields` is the posted form, unslashed and not sanitised, without the password fields and the form's own fields. Sanitise and escape your fields yourself. When a form has errors, it is shown again with the messages, and `$fields` holds the posted values so the fields can be filled in again. After a failed security check, `$fields` is empty.
+
 ## Hooks
 
 - `hm_user_activation_link_lifetime` — filter the link lifetime in hours (`int $hours, object|null $signup`). The signup row lets a site limit expiry to some signups. It is `null` when unknown.
@@ -87,6 +127,9 @@ Signups are network-wide, but the link lifetime and the email templates are per 
 - `hm_user_activation_login_url` — filter the login URL used for the `Activation: Login URL` binding and `{login_url}` in the welcome email. It is the **Log in page** setting if set, then a 1.0.0 log in URL that the upgrade could not turn into a page, then `wp_login_url()` (`string $url, int $user_id, array $meta`).
 - `hm_user_activation_reset_url_fallback` — filter the base URL of set-password links when there is no published password reset page. The default is core's `wp-login.php?action=rp` (`string $url, string $key, string $login`).
 - `hm_user_activation_filter_lostpassword_url` — when a published password reset page is set, the plugin points every `wp_lostpassword_url()` link on the site at it. Return `false` to turn that off (`bool $filter`, default `true`).
+- `hm_user_activation_complete_account_fields` — action inside the Complete your account form, before the submit button (`object $signup, array $meta, array $fields`).
+- `hm_user_activation_complete_account_errors` — filter the errors for the Complete your account form (`WP_Error $errors, array $fields, object $signup, array $meta`).
+- `hm_user_activation_complete_account` — action after an account is activated from the Complete your account form, before the welcome email (`int $user_id, array $meta, array $fields`).
 - `hm_user_activation_activated` — action fired after a successful activation (`int $user_id, array $meta`). It fires before auto-login, so the new user is not yet the current user.
 
 ## Setup
@@ -130,7 +173,7 @@ Code cannot be upgraded this way, so these stay:
   - `HM\UserActivation\BlockBindings\register_sources` (`init`)
   - `HM\UserActivation\Admin\add_settings_page` (`admin_menu`) and `HM\UserActivation\Admin\register_settings` (`admin_init`)
 
-**Mail link scanners** — an account is activated when its activation link is opened. A mail link scanner that follows links can activate the account before the user does. The user then sees the "already active" error with the resend form. If auto-login is on, the scanner gets the login cookie, not the user. This has always been the case.
+**Mail link scanners** — by default, an account is activated when its activation link is opened. A mail link scanner that follows links can activate the account before the user does. The user then sees the "already active" error with the resend form. If auto-login is on, the scanner gets the login cookie, not the user. [Complete your account mode](#complete-your-account-mode) avoids this, because opening the link only shows a form.
 
 ## Security behaviour
 
