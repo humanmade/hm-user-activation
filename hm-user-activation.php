@@ -81,11 +81,31 @@ Upgrade\bootstrap();
 add_action( 'init', __NAMESPACE__ . '\\register_blocks' );
 
 function register_blocks(): void {
+	if ( ! file_exists( HM_USER_ACTIVATION_DIR . 'build/blocks' ) ) {
+		add_action( 'admin_notices', __NAMESPACE__ . '\\build_missing_notice' );
+		add_action( 'network_admin_notices', __NAMESPACE__ . '\\build_missing_notice' );
+		return;
+	}
+
 	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/registration-form' );
 	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/activation-form' );
 	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/password-reset' );
 	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/login-form' );
 	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/resend-form' );
+}
+
+/**
+ * Tell admins that the blocks are missing because the plugin has not been built.
+ */
+function build_missing_notice(): void {
+	if ( ! current_user_can( 'activate_plugins' ) ) {
+		return;
+	}
+
+	printf(
+		'<div class="notice notice-error"><p>%s</p></div>',
+		esc_html__( 'HM User Activation has no build/ directory, so its blocks are not registered. Install a release, or run npm run build in the plugin directory.', 'hm-user-activation' )
+	);
 }
 
 add_action( 'enqueue_block_editor_assets', __NAMESPACE__ . '\\enqueue_editor_assets' );

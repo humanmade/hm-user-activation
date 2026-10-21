@@ -262,7 +262,7 @@ If a CDN or WAF fronts the site, such as Cloudflare, Fastly or CloudFront, put t
 
 ## Development
 
-The block and editor sources live in `src/`. `npm run build` compiles them to `build/`, which is git-ignored. `npm run start` rebuilds when a file changes. The plugin loads its blocks and editor scripts from `build/`, so a source checkout needs a build before the blocks work.
+The block and editor sources live in `src/`. `npm run build` compiles them to `build/`, which is git-ignored. `npm run start` rebuilds when a file changes. The plugin loads its blocks and editor scripts from `build/`, so a source checkout needs a build before the blocks work. Until then, the admin screens show a notice.
 
 ## Testing
 
