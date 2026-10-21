@@ -1,0 +1,109 @@
+name: Release
+
+# Builds the plugin, stamps the version into it, and creates a tag that
+# already points at the built, versioned code. The tag is pushed once and
+# never moved, because Packagist does not accept a tag that changes.
+#
+# Run it from the Actions tab with the version to release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, without a leading "v" (for example 1.2.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, tag and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+
+    steps:
+      - name: Check the version
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::The version must be X.Y.Z without a leading v. Got '$VERSION'."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          # Don't leave the write token in .git/config while dependencies
+          # are installed. Only the push step gets it.
+          persist-credentials: false
+
+      - name: Check the tag is new
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" > /dev/null; then
+            echo "::error::Tag ${VERSION} already exists. Tags never move, so release a new version instead."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Build
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+
+      - name: Stamp the version
+        run: .github/scripts/stamp-version.sh "${VERSION}"
+
+      - name: Commit the build and tag it
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # build/ is git-ignored on main, so add it by force. The commit is
+          # only reachable from the tag, and main never carries built files.
+          git add -f build
+          git add hm-user-activation.php
+          git commit -m "Release ${VERSION}"
+          git tag -a "${VERSION}" -m "Release ${VERSION}"
+
+      - name: Build the ZIP
+        run: |
+          mkdir -p dist
+          # git archive applies the export-ignore rules in .gitattributes, so
+          # the ZIP has exactly what Composer installs from the tag.
+          git archive --format=zip --prefix=hm-user-activation/ -o "dist/hm-user-activation-${VERSION}.zip" "${VERSION}"
+
+      - name: Check the ZIP
+        run: .github/scripts/check-archive.sh "dist/hm-user-activation-${VERSION}.zip" "${VERSION}"
+
+      - name: Keep the ZIP
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hm-user-activation-${{ inputs.version }}
+          path: dist/hm-user-activation-${{ inputs.version }}.zip
+
+      - name: Push the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh auth setup-git
+          git push origin "refs/tags/${VERSION}"
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${VERSION}" "dist/hm-user-activation-${VERSION}.zip" --title "${VERSION}" --generate-notes --verify-tag
