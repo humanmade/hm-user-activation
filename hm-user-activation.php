@@ -36,6 +36,11 @@ require_once HM_USER_ACTIVATION_DIR . 'includes/password-reset.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/admin-settings.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/page-setup.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/block-bindings.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/class-activation.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/class-emails.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/class-block-bindings.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/class-page-setup.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/class-admin-settings.php';
 
 register_activation_hook( __FILE__, __NAMESPACE__ . '\\on_plugin_activation' );
 
