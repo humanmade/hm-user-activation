@@ -162,7 +162,7 @@ function register_sections_and_fields(): void {
 		[
 			'label_for'   => 'hm_activation_complete_profile',
 			'option'      => 'hm_activation_complete_profile',
-			'description' => __( 'Activation links open a form where the user chooses a password. The account is activated when they submit it, and they are then sent to the log in page. They are not logged in automatically.', 'hm-user-activation' ),
+			'description' => __( 'Activation links open a form where the user chooses a password. The account is activated when they submit it. They are not logged in automatically, so any login checks the site has still run.', 'hm-user-activation' ),
 		]
 	);
 
