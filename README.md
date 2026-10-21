@@ -378,7 +378,7 @@ Releases are made by the **Release** workflow (`.github/workflows/release.yml`).
 The workflow does this:
 
 1. It stops if the version is not `X.Y.Z` or the tag already exists.
-2. It runs `npm ci` and `npm run build` on `main`.
+2. It runs `npm ci --ignore-scripts` and `npm run build` on `main`. Install scripts are skipped, so no dependency runs code while the job holds a write token.
 3. It replaces `__VERSION__` in `hm-user-activation.php` with the version, and sets the version in each built `block.json`, so block stylesheets get a new cache key.
 4. It commits `build/` and the versioned plugin file, and tags that commit. The commit is only on the tag, not on `main`.
 5. It builds the ZIP with `git archive` and checks it with `.github/scripts/check-archive.sh`. The ZIP must contain `build/` and the version, and must not contain sources, tests or tooling.
