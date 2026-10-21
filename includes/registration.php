@@ -200,6 +200,9 @@ function process( string $user_name, string $user_email ): void {
 			Resend\resend( $user_email );
 		}
 
+		// A new address's signup reserves its username, so this one does too.
+		reserve_username( $user_name );
+
 		result( [
 			'success'    => true,
 			'user_name'  => $user_name,
@@ -292,11 +295,12 @@ function hides_account_state(): bool {
  * wpmu_validate_user_signup() result.
  *
  * These are core's "already registered" and "pending activation" errors for
- * the email address, and its "reserved" error for a username held by a
- * pending signup. The last one matters because a new address reserves the
- * username it signed up with and a known address does not, so a second
- * signup with that username would tell them apart. In this mode two pending
- * signups can share a username, and the first to activate gets it.
+ * the email address. Core's "reserved" error for a username held by a signup
+ * is replaced with the plugin's own, which also covers usernames reserved by
+ * reserve_username(). A new address's signup reserves its username and a
+ * known address makes no signup, so without this a second signup with that
+ * username would tell them apart. One message for both means a change to
+ * core's wording can't tell them apart either.
  *
  * Runs first on the wpmu_validate_user_signup filter, so every error so far
  * is core's. Core makes these checks last for each field, in this order, so
@@ -332,11 +336,29 @@ function strip_account_state( array &$result ): string {
 	drop_last_errors( $errors, 'user_email', (int) $account + (int) (bool) $pending );
 	drop_last_errors( $errors, 'user_name', (int) (bool) $reserved );
 
+	if ( $login !== '' && ( $reserved || get_site_transient( reservation_key( $login ) ) ) ) {
+		$errors->add( 'user_name', __( 'That username is currently reserved but may be available in a couple of days.', 'hm-user-activation' ) );
+	}
+
 	if ( $account ) {
 		return 'account';
 	}
 
 	return $pending ? 'pending' : '';
+}
+
+/**
+ * Hold a username for as long as core holds one for a pending signup, without
+ * making a signup.
+ *
+ * @param string $login Username.
+ */
+function reserve_username( string $login ): void {
+	set_site_transient( reservation_key( $login ), 1, 2 * DAY_IN_SECONDS );
+}
+
+function reservation_key( string $login ): string {
+	return 'hmua_reserved_' . md5( strtolower( $login ) );
 }
 
 /**
