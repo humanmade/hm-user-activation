@@ -22,6 +22,10 @@
 		}
 	},
 	"attributes": {
+		"showUsername": {
+			"type": "boolean",
+			"default": true
+		},
 		"showEmailNotice": {
 			"type": "boolean",
 			"default": true

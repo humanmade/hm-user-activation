@@ -26,6 +26,12 @@ if ( Registration\is_success() ) {
 $show_email_notice = isset( $attributes['showEmailNotice'] ) ? (bool) $attributes['showEmailNotice'] : true;
 $show_login_link   = isset( $attributes['showLoginLink'] ) ? (bool) $attributes['showLoginLink'] : true;
 
+/** This filter is documented in includes/registration.php */
+$show_username = (bool) apply_filters(
+	'hm_user_activation_registration_show_username',
+	isset( $attributes['showUsername'] ) ? (bool) $attributes['showUsername'] : true
+);
+
 $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-registration-form' ] );
 
 if ( ! Registration\is_registration_enabled() ) {
@@ -53,6 +59,11 @@ $name_error    = implode( ' ', $errors->get_error_messages( 'user_name' ) );
 $email_error   = implode( ' ', $errors->get_error_messages( 'user_email' ) );
 $generic_error = implode( ' ', $errors->get_error_messages( 'generic' ) );
 
+// Without the username field, its errors show with the generic ones.
+if ( ! $show_username && $name_error ) {
+	$generic_error = trim( $generic_error . ' ' . $name_error );
+}
+
 // Core's messages can include <strong> and a log in link.
 $error_html = [
 	'strong' => [],
@@ -68,6 +79,7 @@ $error_html = [
 		do_action( 'signup_hidden_fields', 'validate-user' );
 		?>
 
+		<?php if ( $show_username ) : ?>
 		<p class="hm-registration-form__field">
 			<label class="hm-registration-form__label" for="hm-user-name">
 				<?php esc_html_e( 'Username', 'hm-user-activation' ); ?>
@@ -86,6 +98,7 @@ $error_html = [
 				<span class="hm-registration-form__error" id="hm-user-name-error"><?php echo wp_kses( $name_error, $error_html ); ?></span>
 			<?php endif; ?>
 		</p>
+		<?php endif; ?>
 
 		<p class="hm-registration-form__field">
 			<label class="hm-registration-form__label" for="hm-user-email">

@@ -56,9 +56,12 @@ function ip_limit_reached(): bool {
 	/**
 	 * Filters how many resend requests one IP address can make per hour.
 	 *
-	 * @param int $limit Requests per hour. Default 10. 0 turns the limit off.
+	 * Off by default: limit by IP address at the web server instead, where
+	 * it costs no PHP or storage and can be tuned for shared office addresses.
+	 *
+	 * @param int $limit Requests per hour. Default 0, which turns the limit off.
 	 */
-	$limit = max( 0, (int) apply_filters( 'hm_user_activation_resend_ip_limit', 10 ) );
+	$limit = max( 0, (int) apply_filters( 'hm_user_activation_resend_ip_limit', 0 ) );
 	if ( ! $limit ) {
 		return false;
 	}
@@ -108,7 +111,8 @@ function get_page_url(): string {
  * While the link is still valid the same key is kept, so a stranger can't
  * invalidate someone else's link. Once it has expired a new key is made and
  * the lifetime restarts. Refuses once the signup has been resent the maximum
- * number of times, or if it was resent less than the resend interval ago.
+ * number of times, if it was resent less than the resend interval ago, or if
+ * it has reached the hourly limit.
  *
  * @param string $email Email address the user signed up with.
  * @param bool   $defer Send the email on shutdown, after the response.
@@ -164,9 +168,32 @@ function resend( string $email, bool $defer = false ): bool {
 		return false;
 	}
 
+	// A fixed one-hour window that starts with the first resend in it.
+	$window = (int) ( $info['window'] ?? 0 );
+	$in_it  = (int) ( $info['window_count'] ?? 0 );
+	if ( time() - $window >= HOUR_IN_SECONDS ) {
+		$window = time();
+		$in_it  = 0;
+	}
+
+	/**
+	 * Filters how many times an activation email can be resent for one signup in an hour.
+	 *
+	 * The hour starts with the first resend in it.
+	 *
+	 * @param int    $limit  Maximum resends per hour. Default 3. 0 turns the limit off.
+	 * @param object $signup The pending row from the signups table.
+	 */
+	$hourly = max( 0, (int) apply_filters( 'hm_user_activation_resend_hourly_limit', 3, $signup ) );
+	if ( $hourly && $in_it >= $hourly ) {
+		return false;
+	}
+
 	$meta[ META_KEY ] = [
-		'count' => $sent + 1,
-		'last'  => time(),
+		'count'        => $sent + 1,
+		'last'         => time(),
+		'window'       => $window,
+		'window_count' => $in_it + 1,
 	];
 
 	$data  = [ 'meta' => maybe_serialize( $meta ) ];

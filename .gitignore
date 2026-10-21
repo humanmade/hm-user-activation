@@ -11,3 +11,4 @@ playwright/.cache/
 playwright/.auth/
 .DS_Store
 composer.lock
+.phpunit.result.cache

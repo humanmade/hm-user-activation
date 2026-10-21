@@ -216,6 +216,20 @@ function createHelpers(
 		},
 
 		/**
+		 * The newest signup for an email address, whatever its username.
+		 *
+		 * @param {string} email Email address the signup is for.
+		 * @return {Promise<{user_login: ?string, signup_exists: boolean, signup_active: boolean, meta: ?Object, user_exists: boolean}>} State, with the signup's username.
+		 */
+		async getSignupStateByEmail( email ) {
+			return getJson(
+				await request.get(
+					routeUrl( 'signup-state', { user_email: email } )
+				)
+			);
+		},
+
+		/**
 		 * Delete the signups, site and user a test made.
 		 *
 		 * @param {string} login  Username.
@@ -494,6 +508,58 @@ function createHelpers(
 			await context.addCookies( [
 				{
 					name: 'hmua_test_core_fields',
+					value: '1',
+					url: baseURL,
+				},
+			] );
+		},
+
+		/**
+		 * Have the registration page's content end with the Registration Form
+		 * block rendered from PHP, for one browser context.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context        Browser context.
+		 * @param {Object}                                    [options]      Options.
+		 * @param {boolean}                                   [options.hidden] Render it with "Ask for a username" off.
+		 */
+		async useRenderedRegistrationForm( context, { hidden = false } = {} ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_render_registration_form',
+					value: hidden ? 'hidden' : '1',
+					url: baseURL,
+				},
+			] );
+		},
+
+		/**
+		 * Make the username generated for a registration that value, for one
+		 * browser context. Use a name core rejects to see its error.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context  Browser context.
+		 * @param {string}                                    userName Username to return.
+		 */
+		async useGeneratedUserName( context, userName ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_generated_user_name',
+					value: userName,
+					url: baseURL,
+				},
+			] );
+		},
+
+		/**
+		 * Turn off the registration form's username field with the
+		 * `hm_user_activation_registration_show_username` filter, for one
+		 * browser context.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context Browser context.
+		 */
+		async useHiddenUsername( context ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_hide_username',
 					value: '1',
 					url: baseURL,
 				},

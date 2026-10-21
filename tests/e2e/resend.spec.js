@@ -207,4 +207,34 @@ test.describe( 'Resend form', () => {
 		await page.waitForTimeout( 1500 );
 		expect( await hmua.mail.all( signup.email ) ).toHaveLength( 0 );
 	} );
+
+	test( 'there is no per-address limit by default', async ( {
+		page,
+		hmua,
+	} ) => {
+		// The old default was 10 requests an hour from one address.
+		const signups = [];
+
+		try {
+			for ( let i = 0; i < 12; i++ ) {
+				signups.push( await hmua.createSignup() );
+			}
+
+			for ( const signup of signups ) {
+				await page.goto( '/activate-your-account/?key=not-a-real-key' );
+				await requestNewLink( page, signup.email );
+				await expect( page ).toHaveURL( /hm_activation_resent=1/ );
+			}
+
+			const last = signups[ signups.length - 1 ];
+			await hmua.mail.waitFor( last.email, {
+				subject: ACTIVATION_SUBJECT,
+				count: 2,
+			} );
+		} finally {
+			for ( const signup of signups ) {
+				await hmua.cleanup( signup.login );
+			}
+		}
+	} );
 } );

@@ -95,10 +95,17 @@ function maybe_process(): void {
 	$user_email = wp_unslash( $_POST['user_email'] ?? '' );
 	// phpcs:enable
 
-	process(
-		is_string( $user_name ) ? $user_name : '',
-		is_string( $user_email ) ? $user_email : ''
-	);
+	$user_name  = is_string( $user_name ) ? $user_name : '';
+	$user_email = is_string( $user_email ) ? $user_email : '';
+
+	// Without a username field, any posted username is ignored. A form that
+	// posts no username at all, such as one in a template with the field
+	// turned off, gets a generated one too.
+	if ( ! isset( $_POST['user_name'] ) || ! shows_username() ) {
+		$user_name = generate_user_name( $user_email );
+	}
+
+	process( $user_name, $user_email );
 }
 
 /**
@@ -195,6 +202,134 @@ function process( string $user_name, string $user_email ): void {
 		'user_name'  => $user_name,
 		'user_email' => $user_email,
 	] );
+}
+
+/**
+ * Whether the registration form on the registration page asks for a username.
+ *
+ * Signups are processed before the page renders, so this reads the
+ * showUsername attribute of the first Registration Form block in the page's
+ * content, including inner blocks and synced patterns.
+ */
+function shows_username(): bool {
+	$page_id = (int) get_option( 'hm_activation_registration_page_id' );
+	$post    = $page_id ? get_post( $page_id ) : null;
+	$block   = $post ? find_form_block( parse_blocks( $post->post_content ) ) : null;
+	$show    = ! isset( $block['attrs']['showUsername'] ) || (bool) $block['attrs']['showUsername'];
+
+	/**
+	 * Filters whether the registration form asks for a username.
+	 *
+	 * When it doesn't, a username is made from the email address with
+	 * generate_user_name(). Applied when the form renders and when it is posted.
+	 *
+	 * @param bool $show Defaults to the block's "Ask for a username" setting.
+	 */
+	return (bool) apply_filters( 'hm_user_activation_registration_show_username', $show );
+}
+
+/**
+ * The first Registration Form block in a list of parsed blocks.
+ *
+ * Follows synced patterns that core would render: published, not password
+ * protected, and each one once.
+ *
+ * @param array $blocks Parsed blocks.
+ * @param int[] $seen   Synced pattern IDs already followed.
+ * @return array|null
+ */
+function find_form_block( array $blocks, array &$seen = [] ): ?array {
+	foreach ( $blocks as $block ) {
+		if ( ( $block['blockName'] ?? '' ) === 'hm-user-activation/registration-form' ) {
+			return $block;
+		}
+
+		$inner = $block['innerBlocks'] ?? [];
+
+		if ( ( $block['blockName'] ?? '' ) === 'core/block' ) {
+			$ref     = (int) ( $block['attrs']['ref'] ?? 0 );
+			$pattern = $ref && ! in_array( $ref, $seen, true ) ? get_post( $ref ) : null;
+			$seen[]  = $ref;
+			$inner   = $pattern && $pattern->post_type === 'wp_block' && $pattern->post_status === 'publish' && empty( $pattern->post_password )
+				? parse_blocks( $pattern->post_content )
+				: [];
+		}
+
+		$found = $inner ? find_form_block( $inner, $seen ) : null;
+
+		if ( $found ) {
+			return $found;
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Make a username from an email address that core's signup rules accept.
+ *
+ * Starts from the address's local part, keeps lowercase letters and
+ * numbers, and adds "user" in front when that leaves fewer than four
+ * characters or only numbers. A number, then a short random suffix, is added
+ * until the name is not taken by an account or a signup and is allowed. It
+ * never checks the address itself, so it says nothing about whether the
+ * address has an account.
+ *
+ * @param string $user_email Email address the person signed up with.
+ * @return string Username.
+ */
+function generate_user_name( string $user_email ): string {
+	$local = strtolower( (string) strstr( sanitize_email( $user_email ), '@', true ) );
+	$base  = substr( (string) preg_replace( '/[^a-z0-9]/', '', $local ), 0, 50 );
+
+	if ( strlen( $base ) < 4 || ctype_digit( $base ) ) {
+		$base = substr( 'user' . $base, 0, 50 );
+	}
+
+	$user_name = $base;
+
+	for ( $i = 2; ! user_name_available( $user_name ) && $i < 20; $i++ ) {
+		$suffix    = $i < 10 ? (string) $i : strtolower( wp_generate_password( 6, false ) );
+		$user_name = $base . $suffix;
+	}
+
+	/**
+	 * Filters the username made from an email address.
+	 *
+	 * The result still goes through wpmu_validate_user_signup(), so it must
+	 * follow core's rules: 4 to 60 lowercase letters and numbers, not all numbers.
+	 *
+	 * @param string $user_name  Generated username.
+	 * @param string $user_email Email address it was made from, as posted.
+	 */
+	return (string) apply_filters( 'hm_user_activation_generated_user_name', $user_name, $user_email );
+}
+
+/**
+ * Whether a username is free: no account or signup has it, and the network
+ * and illegal_user_logins allow it.
+ *
+ * @param string $user_name Username to check.
+ */
+function user_name_available( string $user_name ): bool {
+	global $wpdb;
+
+	if ( username_exists( $user_name ) ) {
+		return false;
+	}
+
+	if ( $wpdb->get_var( $wpdb->prepare( "SELECT signup_id FROM {$wpdb->signups} WHERE user_login = %s LIMIT 1", $user_name ) ) ) {
+		return false;
+	}
+
+	// Core uses this list when the network has no illegal_names option yet.
+	$names = get_site_option( 'illegal_names' );
+	$names = is_array( $names ) ? $names : [ 'www', 'web', 'root', 'admin', 'main', 'invite', 'administrator' ];
+
+	/** This filter is documented in wp-includes/user.php */
+	$illegal = array_merge( $names, (array) apply_filters( 'illegal_user_logins', [] ) );
+
+	return ! in_array( $user_name, array_map( 'strtolower', array_map( 'strval', $illegal ) ), true );
 }
 
 /**
