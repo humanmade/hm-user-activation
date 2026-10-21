@@ -16,5 +16,6 @@
 /package.json export-ignore
 /package-lock.json export-ignore
 /phpcs.xml export-ignore
+/phpunit.xml.dist export-ignore
 /REVIEW.md export-ignore
 /composer.lock export-ignore

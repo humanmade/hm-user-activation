@@ -46,11 +46,6 @@ add_filter(
 );
 
 /**
- * Lift the per-IP resend limit: every test request comes from one address.
- */
-add_filter( 'hm_user_activation_resend_ip_limit', '__return_zero' );
-
-/**
  * Let a signup opt out of the password step by carrying `skip_password_setup`
  * in its meta.
  */
@@ -248,6 +243,57 @@ add_action(
 		if ( ! empty( $_COOKIE['hmua_test_block_reset'] ) ) {
 			$errors->add( 'hmua_test_blocked', 'Test hook: this request was blocked.' );
 		}
+	}
+);
+
+/**
+ * With the `hmua_test_render_registration_form` cookie set, add the
+ * Registration Form block to the end of the registration page's content from
+ * PHP, as a site that renders it from a template would. The value `hidden`
+ * renders it with "Ask for a username" turned off.
+ */
+add_filter(
+	'the_content',
+	static function ( string $content ): string {
+		if ( empty( $_COOKIE['hmua_test_render_registration_form'] ) ) {
+			return $content;
+		}
+
+		$page_id = (int) get_option( 'hm_activation_registration_page_id' );
+
+		if ( ! $page_id || get_the_ID() !== $page_id ) {
+			return $content;
+		}
+
+		return $content . render_block( [
+			'blockName' => 'hm-user-activation/registration-form',
+			'attrs'     => $_COOKIE['hmua_test_render_registration_form'] === 'hidden' ? [ 'showUsername' => false ] : [],
+		] );
+	},
+	20
+);
+
+/**
+ * With the `hmua_test_generated_user_name` cookie set, make the username
+ * generated from an email address that value, for example one core rejects.
+ */
+add_filter(
+	'hm_user_activation_generated_user_name',
+	static function ( $user_name ) {
+		$forced = sanitize_user( wp_unslash( (string) ( $_COOKIE['hmua_test_generated_user_name'] ?? '' ) ) );
+
+		return $forced === '' ? $user_name : $forced;
+	}
+);
+
+/**
+ * With the `hmua_test_hide_username` cookie set, turn off the registration
+ * form's username field.
+ */
+add_filter(
+	'hm_user_activation_registration_show_username',
+	static function ( bool $show ): bool {
+		return empty( $_COOKIE['hmua_test_hide_username'] ) ? $show : false;
 	}
 );
 
@@ -559,7 +605,9 @@ function is_test_path( string $path ): bool {
 
 /**
  * Whether a signup is still waiting, and whether a site and user exist.
- * `path` is optional and only needed to look for a site.
+ * `path` is optional and only needed to look for a site. The signup is found
+ * by `user_login` or, without one, by `user_email`; `user_login` in the
+ * answer is the signup's username.
  *
  * @return array|\WP_Error
  */
@@ -567,13 +615,25 @@ function get_signup_state( \WP_REST_Request $request ) {
 	global $wpdb;
 
 	$user_login = sanitize_user( (string) $request->get_param( 'user_login' ), true );
+	$user_email = sanitize_email( (string) $request->get_param( 'user_email' ) );
 	$path       = (string) $request->get_param( 'path' );
 
-	$signup = $wpdb->get_row(
-		$wpdb->prepare( "SELECT active, meta FROM {$wpdb->signups} WHERE user_login = %s ORDER BY signup_id DESC", $user_login )
-	);
+	if ( $user_login === '' && $user_email !== '' ) {
+		$signup = $wpdb->get_row(
+			$wpdb->prepare( "SELECT user_login, active, meta FROM {$wpdb->signups} WHERE user_email = %s ORDER BY signup_id DESC", $user_email )
+		);
+	} else {
+		$signup = $wpdb->get_row(
+			$wpdb->prepare( "SELECT user_login, active, meta FROM {$wpdb->signups} WHERE user_login = %s ORDER BY signup_id DESC", $user_login )
+		);
+	}
+
+	if ( $signup ) {
+		$user_login = $signup->user_login;
+	}
 
 	return [
+		'user_login'    => $signup ? $signup->user_login : null,
 		'signup_exists' => (bool) $signup,
 		'signup_active' => $signup ? (bool) (int) $signup->active : false,
 		'meta'          => $signup ? ( maybe_unserialize( $signup->meta ) ?: null ) : null,

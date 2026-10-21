@@ -30,6 +30,7 @@
 - Cap 3. phpcs (HM standard) has many pre-existing errors; report only violations a change adds, and only if they differ from the existing file conventions.
 
 ## Learned
+- 2026-10-21: `npm run test:php` runs PHPUnit in wp-env's `tests-cli` container against the e2e tests database under the `wptests_` prefix (the e2e site keeps `wp_`), with `tests/mu-plugins` loaded. Running it during a review is safe and takes seconds.
 - 2026-10-21: The `build-to-release-branch` action needs an existing `release` branch that is an ancestor of `main` but not equal to it (`release == main` makes `git apply` fail on an empty diff). Don't flag the one-time `git push origin main:release` before a merge as a bug.
 - 2026-10-21: `.github/scripts/stamp-version.sh` sets every built `block.json` version at release (core uses it as the block stylesheet `?ver=`), so the hand-set versions in `src/blocks/*/block.json` only matter on `main` and `dev-release`.
 - 2026-10-21: Release tags (PR #11) are cut by `release.yml` as a commit off `main` that force-adds `build/` and stamps `__VERSION__`; that commit is reachable only from the tag, by design. `main` and the `release` branch keep `Version: __VERSION__` (the constant is unused at runtime), so don't flag that.

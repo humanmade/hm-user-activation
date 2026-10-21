@@ -84,12 +84,12 @@ add_action(
 add_filter(
 	'wpmu_validate_user_signup',
 	static function ( $result ) {
-		if ( enabled() && is_array( $result ) && isset( $_POST['user_name'] ) && empty( $_POST['hmua_terms'] ) ) {
+		if ( enabled() && is_array( $result ) && isset( $_POST['user_email'] ) && empty( $_POST['hmua_terms'] ) ) {
 			$result['errors']->add( 'hmua_terms', 'Test: please accept the terms.' );
 		}
 
 		// An error that belongs to no field, which core shows above the extra fields.
-		if ( enabled() && is_array( $result ) && isset( $_POST['user_name'] ) && posted( 'hmua_company' ) === 'generic' ) {
+		if ( enabled() && is_array( $result ) && isset( $_POST['user_email'] ) && posted( 'hmua_company' ) === 'generic' ) {
 			$result['errors']->add( 'generic', 'Test: a generic error.' );
 		}
 

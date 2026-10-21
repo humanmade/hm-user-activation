@@ -11,6 +11,7 @@
 		"lint:js": "wp-scripts lint-js src",
 		"wp-env": "wp-env",
 		"env:setup": "node tests/bin/setup-env.js",
+		"test:php": "wp-env run tests-cli --env-cwd=wp-content/plugins/hm-user-activation vendor/bin/phpunit",
 		"test:e2e": "wp-scripts test-playwright",
 		"test:e2e:debug": "wp-scripts test-playwright --debug",
 		"test:e2e:watch": "wp-scripts test-playwright --watch"
