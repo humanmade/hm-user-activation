@@ -260,6 +260,10 @@ If a CDN or WAF fronts the site, such as Cloudflare, Fastly or CloudFront, put t
 ### Password reset email
 `{site_name}` `{site_url}` `{network_name}` `{username}` `{reset_link}`
 
+## Development
+
+The block and editor sources live in `src/`. `npm run build` compiles them to `build/`, which is git-ignored. `npm run start` rebuilds when a file changes. The plugin loads its blocks and editor scripts from `build/`, so a source checkout needs a build before the blocks work. Until then, the admin screens show a notice.
+
 ## Testing
 
 The plugin has end-to-end tests that use Playwright, `@wordpress/scripts` and `@wordpress/env`. The tests run on a subdirectory multisite network with the plugin network-activated. Network activation matters because WordPress only loads network-active plugins on `wp-activate.php`.
@@ -268,10 +272,11 @@ The plugin has end-to-end tests that use Playwright, `@wordpress/scripts` and `@
 
 You need Node.js and Docker.
 
-1. Install dependencies and the browser:
+1. Install dependencies and the browser, then build the blocks:
    ```bash
    npm install
    npx playwright install chromium
+   npm run build
    ```
 
 2. Start the WordPress environment. The tests site runs on port 8889.

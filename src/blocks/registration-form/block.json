@@ -33,6 +33,6 @@
 	},
 	"textdomain": "hm-user-activation",
 	"editorScript": "file:./index.js",
-	"style": "file:./style.css",
+	"style": "file:./style-index.css",
 	"render": "file:./render.php"
 }
