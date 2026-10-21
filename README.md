@@ -67,7 +67,8 @@ Resend rules:
 - While the link is still valid, the same link is sent again and the key and registered time are not changed, so a stranger can't invalidate someone else's link.
 - Once the link has expired, a new key is made and the lifetime restarts. The old key is gone.
 - Each signup can be resent 5 times (`hm_user_activation_resend_limit`, `0` for no limit), and not within 5 minutes of the last resend (`hm_user_activation_resend_interval`, seconds, `0` for none). The count is kept in the signup meta.
-- The resend form allows 10 requests per hour from one IP address (`hm_user_activation_resend_ip_limit`, `0` for no limit). Over the limit the reply is the same and nothing is sent. The address comes from `REMOTE_ADDR`; behind a proxy that doesn't restore the visitor's address, use `hm_user_activation_client_ip` to supply it, or every visitor shares one limit.
+- Each signup can also be resent 3 times an hour (`hm_user_activation_resend_hourly_limit`, `0` for no limit). The hour is a fixed window. It starts with the first resend in it and lasts one hour. The first resend after the window ends starts a new one. The window start and count are kept in the signup meta.
+- The resend form has no per-IP limit by default (`hm_user_activation_resend_ip_limit` is `0`). A limit kept in PHP costs a write on every request and blocks offices that share one address, so rate limit per IP at the web server instead. See the [nginx rules](#nginx) in Rate limiting. A site that wants the PHP limit can return a number of requests per hour from the filter. Over the limit the reply is the same and nothing is sent. The address comes from `REMOTE_ADDR`; behind a proxy that doesn't restore the visitor's address, use `hm_user_activation_client_ip` to supply it, or every visitor shares one limit.
 - If someone uses up a signup's resends while its link is still valid, every email still carries that valid link. With a link lifetime set, once the link expires and no resends are left, the person has to register again after core's two-day window.
 - The form sends the email after the redirect, so timing doesn't show whether an address has a pending signup.
 - Return `false` from `hm_user_activation_can_resend` (`bool $can_resend, object $signup`) to block a resend.
@@ -122,7 +123,8 @@ add_action( 'hm_user_activation_complete_account', function ( $user_id, $meta, $
 - `hm_user_activation_link_lifetime` — filter the link lifetime in hours (`int $hours, object|null $signup`). The signup row lets a site limit expiry to some signups. It is `null` when unknown.
 - `hm_user_activation_resend_interval` — filter the minimum seconds between resends for a signup (`int $seconds`).
 - `hm_user_activation_resend_limit` — filter how many times a signup can be resent (`int $limit`).
-- `hm_user_activation_resend_ip_limit` — filter resend requests per hour per IP address (`int $limit`).
+- `hm_user_activation_resend_hourly_limit` — filter how many times a signup can be resent in an hour (`int $limit`, `object $signup`). The default is 3 and `0` turns it off.
+- `hm_user_activation_resend_ip_limit` — filter resend requests per hour per IP address (`int $limit`). The default is `0`, which turns it off.
 - `hm_user_activation_client_ip` — filter the client IP address used for the resend limit (`string $ip`).
 - `hm_user_activation_can_resend` — filter whether a resend is allowed (`bool $can_resend, object $signup`).
 - `hm_user_activation_needs_password_setup` — override whether the user is sent to set a password (`bool $needs, int $user_id, array $meta`). The default is `true` only while the user still has the password core generated during activation, so a password set by a hook on `wpmu_activate_user` skips the step automatically. Returning `false` for a user who only has the generated password leaves them unable to log in until they use "lost password". Returning `true` for a user who already has a password just sends them through a harmless reset. When `false`, no reset link is generated. If the welcome email is still sent, `{password_reset_link}` in it becomes the login URL, and if the welcome email body setting is empty a default body without a password step is used. On the default activation page the "Set your password" button is dropped when there is no reset link, and a "Log in" button is shown.
@@ -156,6 +158,16 @@ The plugin needs its compiled `build/` directory. Every release tag and release 
    - **Log in page** — used as `{login_url}` in the welcome email.
    - Email templates for the activation, welcome and password reset emails.
 4. Users who register will receive your custom activation email linking to the configured page.
+
+## Upgrading to 1.4.0
+
+The per-IP resend limit is now off by default. Earlier versions allowed 10 resend requests an hour from one IP address. To get the old behaviour back, return `10` from `hm_user_activation_resend_ip_limit`:
+
+```php
+add_filter( 'hm_user_activation_resend_ip_limit', fn() => 10 );
+```
+
+Each signup is now also limited to 3 resends an hour. Return a different number from `hm_user_activation_resend_hourly_limit`, or `0` to turn it off.
 
 ## Upgrading from 1.0.0
 
