@@ -69,11 +69,12 @@ class Test_Resend_Limits extends WP_UnitTestCase {
 		$this->assertEqualsWithDelta( time(), $first['window'], 5 );
 		$this->assertSame( 1, $first['window_count'] );
 
-		$this->update_counter( [ 'window' => time() - 1800 ] );
+		$start = time() - 1800;
+		$this->update_counter( [ 'window' => $start ] );
 		resend( self::EMAIL );
 		$second = $this->counter();
 
-		$this->assertSame( time() - 1800, $second['window'] );
+		$this->assertSame( $start, $second['window'] );
 		$this->assertSame( 2, $second['window_count'] );
 	}
 

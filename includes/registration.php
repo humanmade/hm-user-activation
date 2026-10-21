@@ -98,8 +98,10 @@ function maybe_process(): void {
 	$user_name  = is_string( $user_name ) ? $user_name : '';
 	$user_email = is_string( $user_email ) ? $user_email : '';
 
-	// Without a username field, any posted username is ignored.
-	if ( ! shows_username() ) {
+	// Without a username field, any posted username is ignored. A form that
+	// posts no username at all, such as one in a template with the field
+	// turned off, gets a generated one too.
+	if ( ! isset( $_POST['user_name'] ) || ! shows_username() ) {
 		$user_name = generate_user_name( $user_email );
 	}
 
@@ -229,11 +231,14 @@ function shows_username(): bool {
 /**
  * The first Registration Form block in a list of parsed blocks.
  *
+ * Follows synced patterns that core would render: published, not password
+ * protected, and each one once.
+ *
  * @param array $blocks Parsed blocks.
- * @param int   $depth  Synced patterns followed so far, to stop loops.
+ * @param int[] $seen   Synced pattern IDs already followed.
  * @return array|null
  */
-function find_form_block( array $blocks, int $depth = 0 ): ?array {
+function find_form_block( array $blocks, array &$seen = [] ): ?array {
 	foreach ( $blocks as $block ) {
 		if ( ( $block['blockName'] ?? '' ) === 'hm-user-activation/registration-form' ) {
 			return $block;
@@ -241,13 +246,16 @@ function find_form_block( array $blocks, int $depth = 0 ): ?array {
 
 		$inner = $block['innerBlocks'] ?? [];
 
-		if ( ( $block['blockName'] ?? '' ) === 'core/block' && $depth < 5 ) {
-			$pattern = get_post( (int) ( $block['attrs']['ref'] ?? 0 ) );
-			$inner   = $pattern && $pattern->post_type === 'wp_block' ? parse_blocks( $pattern->post_content ) : [];
-			$found   = find_form_block( $inner, $depth + 1 );
-		} else {
-			$found = $inner ? find_form_block( $inner, $depth ) : null;
+		if ( ( $block['blockName'] ?? '' ) === 'core/block' ) {
+			$ref     = (int) ( $block['attrs']['ref'] ?? 0 );
+			$pattern = $ref && ! in_array( $ref, $seen, true ) ? get_post( $ref ) : null;
+			$seen[]  = $ref;
+			$inner   = $pattern && $pattern->post_type === 'wp_block' && $pattern->post_status === 'publish' && ! post_password_required( $pattern )
+				? parse_blocks( $pattern->post_content )
+				: [];
 		}
+
+		$found = $inner ? find_form_block( $inner, $seen ) : null;
 
 		if ( $found ) {
 			return $found;
@@ -314,8 +322,12 @@ function user_name_available( string $user_name ): bool {
 		return false;
 	}
 
+	// Core uses this list when the network has no illegal_names option yet.
+	$names = get_site_option( 'illegal_names' );
+	$names = is_array( $names ) ? $names : [ 'www', 'web', 'root', 'admin', 'main', 'invite', 'administrator' ];
+
 	/** This filter is documented in wp-includes/user.php */
-	$illegal = array_merge( (array) get_site_option( 'illegal_names', [] ), (array) apply_filters( 'illegal_user_logins', [] ) );
+	$illegal = array_merge( $names, (array) apply_filters( 'illegal_user_logins', [] ) );
 
 	return ! in_array( $user_name, array_map( 'strtolower', array_map( 'strval', $illegal ) ), true );
 }

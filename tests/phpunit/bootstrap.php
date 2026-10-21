@@ -22,6 +22,11 @@ if ( ! getenv( 'WORDPRESS_TABLE_PREFIX' ) ) {
 	putenv( 'WORDPRESS_TABLE_PREFIX=wptests_' );
 }
 
+if ( getenv( 'WORDPRESS_TABLE_PREFIX' ) === 'wp_' ) {
+	fwrite( STDERR, "Refusing to run: the wp_ table prefix belongs to the e2e site.\n" );
+	exit( 1 );
+}
+
 define( 'WP_TESTS_PHPUNIT_POLYFILLS_PATH', dirname( __DIR__, 2 ) . '/vendor/yoast/phpunit-polyfills' );
 
 require_once $tests_dir . '/includes/functions.php';
