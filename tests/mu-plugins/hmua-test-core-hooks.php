@@ -88,7 +88,27 @@ add_filter(
 			$result['errors']->add( 'hmua_terms', 'Test: please accept the terms.' );
 		}
 
+		// An error that belongs to no field, which core shows above the extra fields.
+		if ( enabled() && is_array( $result ) && isset( $_POST['user_name'] ) && posted( 'hmua_company' ) === 'generic' ) {
+			$result['errors']->add( 'generic', 'Test: a generic error.' );
+		}
+
 		return $result;
+	}
+);
+
+/**
+ * Registration form: suggest a username from the `hmua_user` query arg
+ * through core's form defaults filter.
+ */
+add_filter(
+	'signup_user_init',
+	static function ( $defaults ) {
+		if ( enabled() && is_array( $defaults ) && empty( $defaults['user_name'] ) && isset( $_GET['hmua_user'] ) ) {
+			$defaults['user_name'] = sanitize_user( wp_unslash( (string) $_GET['hmua_user'] ), true );
+		}
+
+		return $defaults;
 	}
 );
 

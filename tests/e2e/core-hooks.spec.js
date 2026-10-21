@@ -82,6 +82,39 @@ test.describe( 'Registration form with core hooks', () => {
 		await expect( form.getByLabel( 'Company' ) ).toHaveValue( 'Acme' );
 	} );
 
+	test( "core's signup_user_init filter sets the form's defaults", async ( {
+		page,
+	} ) => {
+		await page.goto( `${ REGISTRATION_URL }?hmua_user=fromfilter` );
+
+		await expect(
+			registrationForm( page ).getByLabel( 'Username' )
+		).toHaveValue( 'fromfilter' );
+	} );
+
+	test( "a 'generic' error shows above the extra fields and stops the signup", async ( {
+		page,
+		hmua,
+	} ) => {
+		const identity = hmua.newIdentity();
+		hmua.track( identity.login );
+
+		await page.goto( REGISTRATION_URL );
+		await page.getByLabel( 'Company' ).fill( 'generic' );
+		await page.getByLabel( 'I accept the terms' ).check();
+		await register( page, identity );
+
+		await expect( page.locator( '#hm-registration-generic-error' ) ).toHaveText(
+			'Test: a generic error.'
+		);
+		await expect(
+			page.locator( '.hm-registration-success' )
+		).toHaveCount( 0 );
+		expect( ( await hmua.getSignupState( identity.login ) ).signup_exists ).toBe(
+			false
+		);
+	} );
+
 	test( 'an error added on core\'s validation filter stops the signup and keeps the values', async ( {
 		page,
 		hmua,
