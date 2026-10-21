@@ -85,7 +85,7 @@ function redact_site_welcome_password( $welcome_email, $blog_id, $user_id, $pass
 		return $welcome_email;
 	}
 
-	if ( CompleteAccount\is_enabled() ) {
+	if ( CompleteAccount\is_completing() ) {
 		$notice = __( 'The password you chose when you activated your account.', 'hm-user-activation' );
 	} else {
 		/* translators: %s: password reset page URL */

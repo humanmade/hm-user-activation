@@ -198,7 +198,9 @@ function process_submission( int $page_id ): void {
 
 	Resend\clear_counter( $signup );
 
+	is_completing( true );
 	$activation = wpmu_activate_signup( $key );
+	is_completing( false );
 
 	if ( is_wp_error( $activation ) ) {
 		fail( $activation, $page_id );
@@ -208,10 +210,9 @@ function process_submission( int $page_id ): void {
 	$user_id = (int) $activation['user_id'];
 	$user    = get_user_by( 'id', $user_id );
 
-	// Only an account this activation created can have its password set. A
-	// site signup for a username taken since check_key() ran gets the
-	// existing account, which still has its own password.
-	if ( ! $user || empty( $activation['password'] ) || ! wp_check_password( $activation['password'], $user->user_pass, $user_id ) ) {
+	// A site signup for a username taken by someone else since check_key()
+	// ran gets their account. Leave its password alone.
+	if ( ! $user || ! is_signup_account( $user, $signup ) ) {
 		fail( invalid_key_error(), $page_id );
 		return;
 	}
@@ -258,9 +259,11 @@ function process_submission( int $page_id ): void {
  * The signup for a key, or an error when it can't be completed.
  *
  * Unknown and already used keys get the same message, so the form says
- * nothing about which keys exist. So does a signup whose username already
- * belongs to an account: core activates a site signup for that account, and
- * the form would then set its password.
+ * nothing about which keys exist. So does a signup whose username belongs
+ * to an account with another email address: core activates a site signup
+ * for that account, and the form would then set its password. An account
+ * with the signup's own address is allowed, because core makes one before
+ * the site, and a site that failed to be created leaves it behind.
  *
  * @param string $key Activation key.
  * @return object|\WP_Error
@@ -268,7 +271,8 @@ function process_submission( int $page_id ): void {
 function check_key( string $key ) {
 	$signup = $key ? Activation\get_signup_by_key( $key ) : null;
 
-	if ( $signup && username_exists( $signup->user_login ) ) {
+	$user = $signup ? get_user_by( 'login', $signup->user_login ) : false;
+	if ( $user && ! is_signup_account( $user, $signup ) ) {
 		$signup = null;
 	}
 
@@ -281,6 +285,16 @@ function check_key( string $key ) {
 	}
 
 	return $signup;
+}
+
+/**
+ * Whether an account is the one a signup is for, going by its email address.
+ *
+ * @param \WP_User $user   Account with the signup's username.
+ * @param object   $signup Signup row.
+ */
+function is_signup_account( \WP_User $user, object $signup ): bool {
+	return strcasecmp( $user->user_email, $signup->user_email ) === 0;
 }
 
 /**
@@ -334,6 +348,19 @@ function signup_user( object $signup ): \WP_User {
 		'user_login' => $signup->user_login,
 		'user_email' => $signup->user_email,
 	] );
+}
+
+/**
+ * Whether the completion form is activating a signup right now.
+ *
+ * @param bool|null $value Pass a value to set it.
+ */
+function is_completing( ?bool $value = null ): bool {
+	static $completing = false;
+	if ( $value !== null ) {
+		$completing = $value;
+	}
+	return $completing;
 }
 
 function nonce_failed_message(): string {
