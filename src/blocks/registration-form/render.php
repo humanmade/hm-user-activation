@@ -76,7 +76,7 @@ $error_html = [
 				type="text"
 				id="hm-user-name"
 				name="user_name"
-				class="hm-registration-form__input"
+				class="hm-registration-form__input input"
 				value="<?php echo esc_attr( $user_name ); ?>"
 				required
 				autocomplete="username"
@@ -95,7 +95,7 @@ $error_html = [
 				type="email"
 				id="hm-user-email"
 				name="user_email"
-				class="hm-registration-form__input"
+				class="hm-registration-form__input input"
 				value="<?php echo esc_attr( $user_email ); ?>"
 				required
 				autocomplete="email"
@@ -122,7 +122,7 @@ $error_html = [
 		<?php endif; ?>
 
 		<div class="hm-registration-form__submit wp-block-button">
-			<button type="submit" class="hm-registration-form__button wp-block-button__button wp-element-button">
+			<button type="submit" class="hm-registration-form__button wp-block-button__button button <?php echo esc_attr( wp_theme_get_element_class_name( 'button' ) ); ?>">
 				<?php esc_html_e( 'Register', 'hm-user-activation' ); ?>
 			</button>
 		</div>

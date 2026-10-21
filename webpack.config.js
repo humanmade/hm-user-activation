@@ -15,6 +15,10 @@ module.exports = {
 				__dirname,
 				'src/variations/index.js'
 			),
+			'password-strength/index': path.resolve(
+				__dirname,
+				'src/password-strength/index.js'
+			),
 		};
 	},
 };

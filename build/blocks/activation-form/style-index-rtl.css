@@ -1,1 +1,1 @@
-.hm-activation-form__field{display:flex;flex-direction:column;gap:.375em}
+.hm-activation-form__field{display:flex;flex-direction:column;gap:.375em}.hm-activation-form__field .hm-password-toggle{align-self:flex-start}.hm-password-strength[hidden],.hm-password-toggle[hidden]{display:none}

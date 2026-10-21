@@ -159,6 +159,17 @@ add_action(
 );
 
 /**
+ * With the `hmua_test_no_strength_meter` cookie set, turn off the password
+ * strength meter and show/hide toggle.
+ */
+add_filter(
+	'hm_user_activation_password_strength_meter',
+	static function ( bool $enabled ): bool {
+		return empty( $_COOKIE['hmua_test_no_strength_meter'] ) ? $enabled : false;
+	}
+);
+
+/**
  * A stand-in for a site adding its own field to the "Complete your account"
  * form: with the `hmua_test_complete_fields` cookie set, ask for a first name,
  * require it, and save it. The keys of the fields the action receives are

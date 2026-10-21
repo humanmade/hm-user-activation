@@ -33,14 +33,14 @@ $action = Resend\get_page_url();
 				type="email"
 				id="hm-resend-email"
 				name="resend_email"
-				class="hm-resend-form__input"
+				class="hm-resend-form__input input"
 				required
 				autocomplete="email"
 			>
 		</p>
 
 		<div class="hm-resend-form__submit wp-block-button">
-			<button type="submit" class="hm-resend-form__button wp-block-button__button wp-element-button">
+			<button type="submit" class="hm-resend-form__button wp-block-button__button button <?php echo esc_attr( wp_theme_get_element_class_name( 'button' ) ); ?>">
 				<?php esc_html_e( 'Send a new activation link', 'hm-user-activation' ); ?>
 			</button>
 		</div>

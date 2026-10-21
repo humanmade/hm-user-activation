@@ -165,6 +165,21 @@ function pending_user(): ?\WP_User {
 }
 
 /**
+ * Whether the set-password forms show a strength meter and a show/hide toggle.
+ */
+function strength_meter_enabled(): bool {
+	/**
+	 * Filters whether the "Complete your account" and "Set new password" forms
+	 * show a password strength meter and a show/hide password button.
+	 *
+	 * This only changes the form. Password rules are still enforced on the server.
+	 *
+	 * @param bool $enabled Whether to show the meter. Default true.
+	 */
+	return (bool) apply_filters( 'hm_user_activation_password_strength_meter', true );
+}
+
+/**
  * A single message for every unusable key.
  *
  * Core distinguishes invalid from expired keys; collapsing them means a caller

@@ -27,6 +27,16 @@ $form = wp_login_form( [
 	'label_username' => __( 'Username or email address', 'hm-user-activation' ),
 ] );
 
+// Give the submit the theme's button class, as the core login/out block does.
+$processor = new WP_HTML_Tag_Processor( $form );
+while ( $processor->next_tag( 'input' ) ) {
+	if ( 'submit' === $processor->get_attribute( 'type' ) && 'wp-submit' === $processor->get_attribute( 'name' ) ) {
+		$processor->add_class( wp_theme_get_element_class_name( 'button' ) );
+		break;
+	}
+}
+$form = $processor->get_updated_html();
+
 $forgot_link = sprintf(
 	'<p class="hm-login-form__forgot"><a href="%s">%s</a></p>',
 	esc_url( wp_lostpassword_url() ),
