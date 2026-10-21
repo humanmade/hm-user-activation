@@ -255,6 +255,42 @@ function process_password_change( string $key, string $login, string $pass1, str
 		return;
 	}
 
+	$errors = validate_new_password( $user, $pass1, $pass2 );
+
+	if ( $errors->has_errors() ) {
+		result( [
+			'success'       => false,
+			'mode'          => 'reset',
+			'error_code'    => $errors->get_error_code(),
+			'error_message' => implode( ' ', $errors->get_error_messages() ),
+		] );
+		return;
+	}
+
+	// The new password changes the hash that auth cookies are signed with, so
+	// cookies issued before the reset stop working. reset_password() also
+	// clears the reset key.
+	reset_password( $user, $pass1 );
+
+	// The key is spent — remove it so the form cannot be resubmitted.
+	Security\clear_key_cookie( Security\RESET_COOKIE, (int) get_option( 'hm_activation_password_reset_page_id' ) );
+
+	result( [ 'success' => true, 'mode' => 'reset' ] );
+}
+
+/**
+ * Check a new password the way wp-login.php does when a password is reset.
+ *
+ * Trims both values, fires check_passwords, checks they are not empty and
+ * match, then fires validate_password_reset. Both values are passed by
+ * reference and come back as they will be stored. They must be the raw,
+ * slashed values from $_POST, as wp-login.php uses.
+ *
+ * @param \WP_User $user  The user whose password is being set.
+ * @param string   $pass1 The new password.
+ * @param string   $pass2 The confirmed password.
+ */
+function validate_new_password( \WP_User $user, string &$pass1, string &$pass2 ): \WP_Error {
 	$pass1 = trim( $pass1 );
 	$pass2 = trim( $pass2 );
 
@@ -291,25 +327,8 @@ function process_password_change( string $key, string $login, string $pass1, str
 	 */
 	do_action( 'validate_password_reset', $errors, $user );
 
-	if ( $errors->has_errors() ) {
-		result( [
-			'success'       => false,
-			'mode'          => 'reset',
-			'error_code'    => $errors->get_error_code(),
-			'error_message' => implode( ' ', $errors->get_error_messages() ),
-		] );
-		return;
-	}
+	return $errors;
 
-	// The new password changes the hash that auth cookies are signed with, so
-	// cookies issued before the reset stop working. reset_password() also
-	// clears the reset key.
-	reset_password( $user, $pass1 );
-
-	// The key is spent — remove it so the form cannot be resubmitted.
-	Security\clear_key_cookie( Security\RESET_COOKIE, (int) get_option( 'hm_activation_password_reset_page_id' ) );
-
-	result( [ 'success' => true, 'mode' => 'reset' ] );
 }
 
 // -------------------------------------------------------------------------
