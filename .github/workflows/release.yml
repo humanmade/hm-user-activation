@@ -43,8 +43,8 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-          # npm ci runs third-party install scripts, so don't leave the
-          # write token in .git/config. Only the push step gets it.
+          # Don't leave the write token in .git/config while dependencies
+          # are installed. Only the push step gets it.
           persist-credentials: false
 
       - name: Check the tag is new
@@ -62,7 +62,7 @@ jobs:
 
       - name: Build
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npm run build
 
       - name: Stamp the version
