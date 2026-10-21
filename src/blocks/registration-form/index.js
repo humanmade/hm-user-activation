@@ -35,6 +35,20 @@ registerBlockType( metadata.name, {
 					>
 						<ToggleControl
 							label={ __(
+								'Ask for a username',
+								'hm-user-activation'
+							) }
+							help={ __(
+								'When off, a username is made from the email address.',
+								'hm-user-activation'
+							) }
+							checked={ attributes.showUsername }
+							onChange={ ( value ) =>
+								setAttributes( { showUsername: value } )
+							}
+						/>
+						<ToggleControl
+							label={ __(
 								'Show "confirmation will be emailed to you" notice',
 								'hm-user-activation'
 							) }
@@ -70,10 +84,15 @@ registerBlockType( metadata.name, {
 							marginBottom: 0,
 						} }
 					>
-						{ __(
-							'Renders username and email fields. On submission the activation email is sent. Hidden once registration has succeeded, and for logged-in users.',
-							'hm-user-activation'
-						) }
+						{ attributes.showUsername
+							? __(
+									'Renders username and email fields. On submission the activation email is sent. Hidden once registration has succeeded, and for logged-in users.',
+									'hm-user-activation'
+							  )
+							: __(
+									'Renders an email field. On submission the activation email is sent. Hidden once registration has succeeded, and for logged-in users.',
+									'hm-user-activation'
+							  ) }
 					</p>
 				</div>
 			</>
