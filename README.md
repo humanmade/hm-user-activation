@@ -87,6 +87,7 @@ With it on:
 - After activation the user is sent to the log in URL with `?hm_activation_complete=1`. The `Login Form` block and `wp-login.php` then show "Your account is ready. Log in."
 - The user is **not** logged in automatically, and the **Auto-login on activation** setting is ignored. Logging in through the log in form means anything a site runs at login, such as two-factor enrolment, still runs.
 - There is no set-password step. The welcome email, if it is on, uses the log in URL for `{password_reset_link}`, and the default body has no password step. `hm_user_activation_needs_password_setup` is not used. The password the user chose replaces any password that a `wpmu_activate_user` hook set.
+- A signup whose username already belongs to an account with another email address can't be completed. It gets the same error as an unknown link. An account with the signup's own email address can be completed, for example after core created the user but failed to create the site. So until the link is used, it works like a password reset link for that account. Activation links never expire unless you set **Activation link lifetime**.
 
 The form is the `Activation Form` block, so existing activation pages keep working in both modes, and the default activation page needs no change.
 
