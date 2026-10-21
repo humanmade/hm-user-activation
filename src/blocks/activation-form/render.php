@@ -10,6 +10,7 @@
 
 use HM\UserActivation\Activation;
 use HM\UserActivation\CompleteAccount;
+use HM\UserActivation\PasswordReset;
 use HM\UserActivation\Resend;
 
 // A key arriving in the URL is stashed in a cookie and processed automatically,
@@ -26,9 +27,17 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-activation-
 $complete = CompleteAccount\state();
 if ( $complete ) :
 	$signup = $complete['signup'];
+
+	// The extra words the strength meter should treat as weak, and the script that runs it.
+	$strength_meter = PasswordReset\strength_meter_enabled();
+	$strength_attr  = '';
+	if ( $strength_meter ) {
+		$strength_attr = ' data-hm-password-strength="' . esc_attr( wp_json_encode( [ $signup->user_login, $signup->user_email ] ) ) . '"';
+		wp_enqueue_script( 'hm-user-activation-password-strength' );
+	}
 	?>
 <div <?php echo $wrapper_attributes; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- get_block_wrapper_attributes() returns escaped attributes ?>>
-	<form method="post" action="<?php echo esc_url( remove_query_arg( [ 'key', Resend\QUERY_ARG ] ) ); ?>" class="hm-activation-form__complete">
+	<form method="post" action="<?php echo esc_url( remove_query_arg( [ 'key', Resend\QUERY_ARG ] ) ); ?>" class="hm-activation-form__complete"<?php echo $strength_attr; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- built from esc_attr() ?>>
 		<?php wp_nonce_field( 'hm_activation_complete', '_hm_complete_nonce' ); ?>
 		<input type="hidden" name="activation_key" value="<?php echo esc_attr( $complete['key'] ); ?>">
 
@@ -65,8 +74,16 @@ if ( $complete ) :
 				class="hm-activation-form__input input"
 				required
 				autocomplete="new-password"
+				<?php echo $strength_meter ? ' aria-describedby="hm-activation-pass1-strength"' : ''; ?>
 			>
+			<?php if ( $strength_meter ) : ?>
+				<button type="button" class="button hm-password-toggle" aria-controls="hm-activation-pass1 hm-activation-pass2" aria-pressed="false" data-show="<?php esc_attr_e( 'Show password', 'hm-user-activation' ); ?>" data-hide="<?php esc_attr_e( 'Hide password', 'hm-user-activation' ); ?>" hidden><?php esc_html_e( 'Show password', 'hm-user-activation' ); ?></button>
+			<?php endif; ?>
 		</p>
+
+		<?php if ( $strength_meter ) : ?>
+			<p id="hm-activation-pass1-strength" class="pass-strength-result hm-password-strength" aria-live="polite" hidden></p>
+		<?php endif; ?>
 
 		<p class="hm-activation-form__field">
 			<label class="hm-activation-form__label" for="hm-activation-pass2">

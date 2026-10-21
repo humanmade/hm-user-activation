@@ -81,6 +81,7 @@ Upgrade\bootstrap();
 
 // Register blocks and editor assets.
 add_action( 'init', __NAMESPACE__ . '\\register_blocks' );
+add_action( 'init', __NAMESPACE__ . '\\register_password_strength_script' );
 
 function register_blocks(): void {
 	if ( ! file_exists( HM_USER_ACTIVATION_DIR . 'build/blocks' ) ) {
@@ -94,6 +95,28 @@ function register_blocks(): void {
 	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/password-reset' );
 	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/login-form' );
 	register_block_type( HM_USER_ACTIVATION_DIR . 'build/blocks/resend-form' );
+}
+
+/**
+ * Register the script behind the password strength meter. The set-password forms enqueue it.
+ */
+function register_password_strength_script(): void {
+	$asset_file = HM_USER_ACTIVATION_DIR . 'build/password-strength/index.asset.php';
+
+	// A source checkout has no build yet, so there is nothing to register.
+	if ( ! file_exists( $asset_file ) ) {
+		return;
+	}
+
+	$asset = require $asset_file;
+
+	wp_register_script(
+		'hm-user-activation-password-strength',
+		HM_USER_ACTIVATION_URL . 'build/password-strength/index.js',
+		array_merge( $asset['dependencies'], [ 'password-strength-meter' ] ),
+		$asset['version'],
+		true
+	);
 }
 
 /**

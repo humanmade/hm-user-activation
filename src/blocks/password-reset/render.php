@@ -28,11 +28,22 @@ $key           = $pending['key'] ?? '';
 $is_reset_mode = (bool) $pending;
 
 $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-reset' ] );
+
+$pending_user = $is_reset_mode ? PasswordReset\pending_user() : null;
+
+// The extra words the strength meter should treat as weak, and the script that runs it.
+$strength_meter = $is_reset_mode && PasswordReset\strength_meter_enabled();
+$strength_attr  = '';
+if ( $strength_meter ) {
+	$strength_words = $pending_user ? [ $pending_user->user_login, $pending_user->user_email ] : [];
+	$strength_attr  = ' data-hm-password-strength="' . esc_attr( wp_json_encode( $strength_words ) ) . '"';
+	wp_enqueue_script( 'hm-user-activation-password-strength' );
+}
 ?>
 <div <?php echo $wrapper_attributes; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- get_block_wrapper_attributes() returns escaped attributes ?>>
 <?php if ( $is_reset_mode ) : ?>
 
-	<form method="post" action="" class="hm-password-reset__form">
+	<form method="post" action="" class="hm-password-reset__form"<?php echo $strength_attr; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- built from esc_attr() ?>>
 		<?php wp_nonce_field( 'hm_reset', '_hm_reset_nonce' ); ?>
 		<input type="hidden" name="rp_key" value="<?php echo esc_attr( $key ); ?>">
 
@@ -47,8 +58,16 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 				class="hm-password-reset__input input"
 				required
 				autocomplete="new-password"
+				<?php echo $strength_meter ? ' aria-describedby="hm-pass1-strength"' : ''; ?>
 			>
+			<?php if ( $strength_meter ) : ?>
+				<button type="button" class="button hm-password-toggle" aria-controls="hm-pass1 hm-pass2" aria-pressed="false" data-show="<?php esc_attr_e( 'Show password', 'hm-user-activation' ); ?>" data-hide="<?php esc_attr_e( 'Hide password', 'hm-user-activation' ); ?>" hidden><?php esc_html_e( 'Show password', 'hm-user-activation' ); ?></button>
+			<?php endif; ?>
 		</p>
+
+		<?php if ( $strength_meter ) : ?>
+			<p id="hm-pass1-strength" class="pass-strength-result hm-password-strength" aria-live="polite" hidden></p>
+		<?php endif; ?>
 
 		<p class="hm-password-reset__field">
 			<label class="hm-password-reset__label" for="hm-pass2">
@@ -66,7 +85,6 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 
 		<?php
 		// Core's hook for extra reset fields, such as password policy notices.
-		$pending_user = PasswordReset\pending_user();
 		if ( $pending_user ) {
 			do_action( 'resetpass_form', $pending_user );
 		}

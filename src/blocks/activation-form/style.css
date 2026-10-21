@@ -8,3 +8,7 @@
 	flex-direction: column;
 	gap: 0.375em;
 }
+
+.hm-activation-form__field .hm-password-toggle {
+	align-self: flex-start;
+}
