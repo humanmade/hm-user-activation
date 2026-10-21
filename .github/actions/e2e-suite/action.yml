@@ -34,6 +34,10 @@ runs:
           shell: bash
           run: npm ci
 
+        - name: Build blocks and editor scripts
+          shell: bash
+          run: npm run build
+
         - name: Install Playwright Browsers
           shell: bash
           run: npx playwright install --with-deps chromium
