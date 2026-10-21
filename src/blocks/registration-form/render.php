@@ -37,8 +37,21 @@ if ( ! Registration\is_registration_enabled() ) {
 	return;
 }
 
-$name_error  = Registration\get_field_error( 'user_name' );
-$email_error = Registration\get_field_error( 'user_email' );
+/** This filter is documented in wp-signup.php */
+$signup_user = apply_filters( 'signup_user_init', [
+	'user_name'  => Registration\get_submitted_user_name(),
+	'user_email' => Registration\get_submitted_user_email(),
+	'errors'     => Registration\get_errors(),
+] );
+
+$user_name  = (string) ( $signup_user['user_name'] ?? '' );
+$user_email = (string) ( $signup_user['user_email'] ?? '' );
+$errors     = is_wp_error( $signup_user['errors'] ?? null ) ? $signup_user['errors'] : new WP_Error();
+
+// A field can carry more than one message, e.g. an invalid *and* taken username.
+$name_error    = implode( ' ', $errors->get_error_messages( 'user_name' ) );
+$email_error   = implode( ' ', $errors->get_error_messages( 'user_email' ) );
+$generic_error = implode( ' ', $errors->get_error_messages( 'generic' ) );
 
 // Core's messages can include <strong> and a log in link.
 $error_html = [
@@ -64,7 +77,7 @@ $error_html = [
 				id="hm-user-name"
 				name="user_name"
 				class="hm-registration-form__input"
-				value="<?php echo esc_attr( Registration\get_submitted_user_name() ); ?>"
+				value="<?php echo esc_attr( $user_name ); ?>"
 				required
 				autocomplete="username"
 				<?php echo $name_error ? ' aria-describedby="hm-user-name-error" aria-invalid="true"' : ''; ?>
@@ -83,7 +96,7 @@ $error_html = [
 				id="hm-user-email"
 				name="user_email"
 				class="hm-registration-form__input"
-				value="<?php echo esc_attr( Registration\get_submitted_user_email() ); ?>"
+				value="<?php echo esc_attr( $user_email ); ?>"
 				required
 				autocomplete="email"
 				<?php echo $email_error ? ' aria-describedby="hm-user-email-error" aria-invalid="true"' : ''; ?>
@@ -93,9 +106,13 @@ $error_html = [
 			<?php endif; ?>
 		</p>
 
+		<?php if ( $generic_error ) : ?>
+			<p class="hm-registration-form__error" id="hm-registration-generic-error"><?php echo wp_kses( $generic_error, $error_html ); ?></p>
+		<?php endif; ?>
+
 		<?php
 		/** This action is documented in wp-signup.php */
-		do_action( 'signup_extra_fields', Registration\get_errors() );
+		do_action( 'signup_extra_fields', $errors );
 		?>
 
 		<?php if ( $show_email_notice ) : ?>

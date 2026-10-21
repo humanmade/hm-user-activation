@@ -10,7 +10,7 @@ Replaces WordPress Multisite's default `wp-signup.php` and `wp-activate.php` flo
 
 ## Features
 
-**Site-level registration page** — registration happens on your own site instead of the network's `wp-signup.php`. Signups are created with core's multisite functions (`wpmu_validate_user_signup()` and `wpmu_signup_user()`), so all the usual validation — reserved and illegal names, banned email domains, existing users, pending signups — still applies. Core's `wpmu_active_signup` filter and the `signup_hidden_fields` and `signup_extra_fields` actions are honoured too. CAPTCHA and anti-spam plugins that add fields with those actions and check them in the `wpmu_validate_user_signup` filter work here. Plugins that only load on `wp-signup.php` need testing. Like `wp-signup.php`, the form tells visitors when a username or email address is already taken.
+**Site-level registration page** — registration happens on your own site instead of the network's `wp-signup.php`. Signups are created with core's multisite functions (`wpmu_validate_user_signup()` and `wpmu_signup_user()`), so all the usual validation — reserved and illegal names, banned email domains, existing users, pending signups — still applies. Core's sign-up hooks are honoured too, so CAPTCHA, anti-spam and consent plugins that add fields to `wp-signup.php` work here. See [Extending the forms](#extending-the-forms). Plugins that only load on `wp-signup.php` need testing. Like `wp-signup.php`, the form tells visitors when a username or email address is already taken.
 
 Once the page is published, `wp_registration_url()` and the `wp-login.php?action=register` link point at it for logged-out visitors. When the network allows user accounts only, requests to `wp-signup.php` are redirected there too. This needs the plugin to be active on the network's main site, because `wp-signup.php` always runs on the main site. When the network also allows sites, `wp-signup.php` stays with core so people can still sign up for a site, and logged-in users keep the "Add New Site" link in My Sites.
 
@@ -91,7 +91,7 @@ With it on:
 
 The form is the `Activation Form` block, so existing activation pages keep working in both modes, and the default activation page needs no change.
 
-Sites can add their own fields, such as names or consent checkboxes:
+Sites can add their own fields, such as names or consent checkboxes. The form fires core's `wp-login.php` registration hooks, so the portable way is a plugin that uses `register_form`, `registration_errors` and `user_register`. See [Extending the forms](#extending-the-forms). The plugin's own hooks below still work and are kept for existing sites:
 
 ```php
 add_action( 'hm_user_activation_complete_account_fields', function ( $signup, $meta, $fields ) {
@@ -301,6 +301,101 @@ If a CDN or WAF fronts the site, such as Cloudflare, Fastly or CloudFront, put t
 - `hm_user_activation_registration_enabled` — filter whether the form accepts submissions (`bool $enabled`, `string $network_setting`).
 - `hm_user_activation_signup_meta` — filter the meta stored against the signup (`array $meta`, `string $user_name`, `string $user_email`). The meta starts with `add_to_blog` (this site) and `new_role` (the default role). Core's `add_signup_meta` filter is applied first.
 - `hm_user_activation_registered` — action fired after a signup is created (`string $user_name`, `string $user_email`, `array $meta`).
+
+## Extending the forms
+
+Both front-end forms fire WordPress core's own sign-up and registration hooks, so a plugin that adds fields to core's forms works with this plugin's forms unchanged. Use these core hooks for new fields. The plugin's own hooks are still there for sites that use them.
+
+The plugin only runs on multisite, so the registration form follows `wp-signup.php`, not the single-site `wp-login.php?action=register` form.
+
+### Registration Form block
+
+These hooks fire where `wp-signup.php` fires them for a user-only signup, with the same arguments:
+
+1. `signup_user_init` filter, before the form is drawn (`array $defaults` with `user_name`, `user_email` and `errors`).
+2. `signup_hidden_fields` action, at the top of the form (`string $context`, always `validate-user`).
+3. `signup_extra_fields` action, after the email field and before the submit button (`WP_Error $errors`). Print your fields here. Errors with the `generic` code are printed just above it, as core does.
+4. `wpmu_validate_user_signup` filter, when the form is posted (`array $result` with `user_name`, `orig_username`, `user_email` and `errors`). Add an error to `$result['errors']` to stop the signup. Use your field's name as the error code, and print `$errors->get_error_message( 'your_field' )` next to the field in `signup_extra_fields`. Every error also shows in the **Registration Errors** group.
+5. `add_signup_meta` filter, when the signup is created (`array $meta`). Add your values to store them with the signup. The plugin's `hm_user_activation_signup_meta` runs after it.
+6. `wpmu_activate_user` action, when the account is activated (`int $user_id`, `string $password`, `array $meta`). Core passes the signup meta. Save your values to the user here.
+
+Save in `wpmu_activate_user`, not `user_register`. The account is usually created later, from the activation link, so the registration form's `$_POST` is gone by then.
+
+After an error, the form is shown again with the username and email filled in. Fill in your own fields from `$_POST`, as on `wp-signup.php`. A field can also be filled in from a query arg, for example `$_GET['company']`.
+
+These `wp-signup.php` hooks are not fired: `before_signup_header`, `signup_header`, `before_signup_form` and `after_signup_form` wrap the whole `wp-signup.php` page, `preprocess_signup_form` only fires when that page shows an empty form, and `signup_finished` fires on its confirmation screen. On this page the theme and the group blocks own that output.
+
+```php
+add_action( 'signup_extra_fields', function ( WP_Error $errors ) {
+	$checked = ! empty( $_POST['accept_terms'] );
+	printf(
+		'<p><label><input type="checkbox" name="accept_terms" value="1" %s> I accept the terms</label></p>',
+		checked( $checked, true, false )
+	);
+	if ( $errors->get_error_message( 'accept_terms' ) ) {
+		printf( '<p class="error">%s</p>', esc_html( $errors->get_error_message( 'accept_terms' ) ) );
+	}
+} );
+
+add_filter( 'wpmu_validate_user_signup', function ( array $result ) {
+	if ( isset( $_POST['user_name'] ) && empty( $_POST['accept_terms'] ) ) {
+		$result['errors']->add( 'accept_terms', 'Please accept the terms.' );
+	}
+	return $result;
+} );
+
+add_filter( 'add_signup_meta', function ( array $meta ) {
+	if ( ! empty( $_POST['accept_terms'] ) ) {
+		$meta['accepted_terms'] = time();
+	}
+	return $meta;
+} );
+
+add_action( 'wpmu_activate_user', function ( $user_id, $password, $meta ) {
+	if ( ! empty( $meta['accepted_terms'] ) ) {
+		update_user_meta( $user_id, 'accepted_terms', (int) $meta['accepted_terms'] );
+	}
+}, 10, 3 );
+```
+
+### Complete your account form
+
+This form is the second step of a multisite signup, where the user chooses a password. The account does not exist yet, so the form fires the hooks that `wp-login.php` fires to register a new user:
+
+1. `register_form` action, inside the form after the password fields. Print your fields here. The plugin's `hm_user_activation_complete_account_fields` fires after it.
+2. `register_post` action, when the form is posted and the password has been checked (`string $user_login`, `string $user_email`, `WP_Error $errors`).
+3. `registration_errors` filter, straight after it (`WP_Error $errors`, `string $user_login`, `string $user_email`). Add an error to keep the form on the page. The login and email come from the signup. `$errors` already holds any password errors. The plugin's `hm_user_activation_complete_account_errors` runs after it and sees every error.
+4. `user_register` action, when the account is created (`int $user_id`, `array $userdata`). This happens while the form's POST is still being handled, so read your fields from `$_POST` and save them here. `wpmu_activate_user` and `hm_user_activation_complete_account` fire after it.
+
+If the signup's account already exists, `user_register` does not fire. This happens when core created the user but then failed to create the site for a site signup. Use `hm_user_activation_complete_account` if you need to cover that case.
+
+Errors show at the top of the form. Fill in your fields again from `$_POST`, as on `wp-login.php`. After a failed security check, the plugin removes your fields from `$_POST`, so they are not filled in again.
+
+The hook arguments never include the password. The password is still in `$_POST['pass1']` and `$_POST['pass2']`, as on core's reset password form, because password policy plugins read it there. Never save or log all of `$_POST`.
+
+```php
+add_action( 'register_form', function () {
+	printf(
+		'<p><label for="company">Company</label> <input id="company" name="company" value="%s"></p>',
+		esc_attr( wp_unslash( $_POST['company'] ?? '' ) )
+	);
+} );
+
+add_filter( 'registration_errors', function ( WP_Error $errors ) {
+	if ( trim( wp_unslash( $_POST['company'] ?? '' ) ) === '' ) {
+		$errors->add( 'company', 'Please enter your company.' );
+	}
+	return $errors;
+} );
+
+add_action( 'user_register', function ( $user_id ) {
+	if ( isset( $_POST['company'] ) ) {
+		update_user_meta( $user_id, 'company', sanitize_text_field( wp_unslash( $_POST['company'] ) ) );
+	}
+} );
+```
+
+A plugin that adds the same field to both forms asks for it twice. Use one form or the other for each field.
 
 ## Email placeholders
 
