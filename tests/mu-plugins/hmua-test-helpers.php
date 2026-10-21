@@ -644,7 +644,8 @@ function ban_email_domain( \WP_REST_Request $request ) {
 		update_site_option( BANNED_PREVIOUS_OPTION, [ $previous === false ? null : $previous ] );
 	}
 
-	update_site_option( 'banned_email_domains', [ BANNED_DOMAIN ] );
+	$banned = (array) get_site_option( 'banned_email_domains', [] );
+	update_site_option( 'banned_email_domains', array_values( array_unique( array_merge( $banned, [ BANNED_DOMAIN ] ) ) ) );
 
 	return [ 'banned' => BANNED_DOMAIN ];
 }
