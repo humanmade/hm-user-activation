@@ -30,7 +30,7 @@ New accounts become members of the site they registered on, with the site's defa
 
 | Block / Variation | Purpose |
 |---|---|
-| `Registration Form` | Renders the username and email fields and submit button |
+| `Registration Form` | Renders the username and email fields and submit button. Turn off **Ask for a username** to ask only for an email address |
 | `Registration Errors` _(group variant)_ | Shown only on failure; inner paragraph bound to the error message |
 | `Registration Success` _(group variant)_ | Shown only once a signup is created; tells the user to check their inbox |
 | `Activation Form` | Renders the activation key input and submit button |
@@ -41,6 +41,8 @@ New accounts become members of the site they registered on, with the site's defa
 | `Login Form` | Renders the WordPress login form, with "Forgot your password?" pointing at the reset page |
 | `Password Reset Form` | Requests a reset link, or sets a new password when a key is present |
 | `Password Reset Errors` / `Email Sent` / `Password Set` _(group variants)_ | Feedback for each reset outcome |
+
+**Email-only registration** — the Registration Form block has an **Ask for a username** setting (the `showUsername` attribute, on by default). When it is off, the form has no Username field and the username is made from the email address. See [Registration without a username](#registration-without-a-username).
 
 **Block bindings** — individual binding sources for use anywhere in the editor:
 
@@ -302,6 +304,25 @@ If a CDN or WAF fronts the site, such as Cloudflare, Fastly or CloudFront, put t
 - `hm_user_activation_registration_enabled` — filter whether the form accepts submissions (`bool $enabled`, `string $network_setting`).
 - `hm_user_activation_signup_meta` — filter the meta stored against the signup (`array $meta`, `string $user_name`, `string $user_email`). The meta starts with `add_to_blog` (this site) and `new_role` (the default role). Core's `add_signup_meta` filter is applied first.
 - `hm_user_activation_registered` — action fired after a signup is created (`string $user_name`, `string $user_email`, `array $meta`).
+- `hm_user_activation_registration_show_username` — filter whether the form asks for a username (`bool $show`). It starts as the block's **Ask for a username** setting. It runs when the form renders and when it is posted. Use it when the block is rendered outside the page content, for example from a template with `render_block()`, because the plugin reads the setting from the registration page's own content.
+- `hm_user_activation_generated_user_name` — filter the username made from the email address when the field is off (`string $user_name`, `string $user_email`). The result still goes through `wpmu_validate_user_signup()`, so it must follow core's rules: 4 to 60 lowercase letters and numbers, not all numbers.
+
+### Registration without a username
+
+Turn off **Ask for a username** in the block's settings, or set `"showUsername": false` on the block. The form then has no Username field.
+
+On submit, the plugin makes the username with `HM\UserActivation\Registration\generate_user_name( string $user_email ): string`. The rules are:
+
+- It takes the part of the address before the `@` and keeps lowercase letters and numbers.
+- It cuts that to 50 characters.
+- It adds `user` in front when fewer than four characters are left, or when only numbers are left. An empty or invalid address gives `user`.
+- If an account or a pending signup already has the name, it adds `2`, then `3`, up to `9`. After that it adds a random six character suffix.
+- It skips names in the network's banned names (`illegal_names`) and in the `illegal_user_logins` filter.
+
+It never looks at whether the email address has an account, so the result says nothing about who is registered. The name goes through `wpmu_validate_user_signup()` like any typed username, so core's rules and every validation hook still apply.
+
+The setting is read from the first Registration Form block in the registration page's content, including blocks inside other blocks and inside synced patterns. A posted `user_name` is ignored when the field is off. If validation fails on the username, the message shows in the generic error slot (`#hm-registration-generic-error`), because there is no field to show it next to.
+
 
 ## Extending the forms
 
@@ -339,7 +360,7 @@ add_action( 'signup_extra_fields', function ( WP_Error $errors ) {
 } );
 
 add_filter( 'wpmu_validate_user_signup', function ( array $result ) {
-	if ( isset( $_POST['user_name'] ) && empty( $_POST['accept_terms'] ) ) {
+	if ( isset( $_POST['user_email'] ) && empty( $_POST['accept_terms'] ) ) {
 		$result['errors']->add( 'accept_terms', 'Please accept the terms.' );
 	}
 	return $result;
@@ -415,7 +436,7 @@ The block and editor sources live in `src/`. `npm run build` compiles them to `b
 
 ## Testing
 
-The plugin has end-to-end tests that use Playwright, `@wordpress/scripts` and `@wordpress/env`. The tests run on a subdirectory multisite network with the plugin network-activated. Network activation matters because WordPress only loads network-active plugins on `wp-activate.php`.
+The plugin has PHPUnit tests and end-to-end tests. The end-to-end tests use Playwright, `@wordpress/scripts` and `@wordpress/env`. The tests run on a subdirectory multisite network with the plugin network-activated. Network activation matters because WordPress only loads network-active plugins on `wp-activate.php`.
 
 ### Running the tests
 
@@ -444,6 +465,18 @@ You need Node.js and Docker.
    ```
 
 If port 8888 is already in use, create a git-ignored `.wp-env.override.json` containing `{ "port": 8890 }`. The tests only use port 8889.
+
+### Running the PHPUnit tests
+
+The PHPUnit tests run in the `wp-env` tests container, on a multisite install. They use the WordPress test library that `wp-env` provides.
+
+```bash
+composer install
+npm run wp-env start
+npm run test:php
+```
+
+The test library drops every table with its table prefix. The bootstrap uses `wptests_` so the end-to-end site, which uses `wp_`, is not touched.
 
 ### Other commands
 
