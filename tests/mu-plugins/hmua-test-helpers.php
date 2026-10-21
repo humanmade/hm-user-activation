@@ -249,7 +249,8 @@ add_action(
 /**
  * With the `hmua_test_render_registration_form` cookie set, add the
  * Registration Form block to the end of the registration page's content from
- * PHP, as a site that renders it from a template would.
+ * PHP, as a site that renders it from a template would. The value `hidden`
+ * renders it with "Ask for a username" turned off.
  */
 add_filter(
 	'the_content',
@@ -266,10 +267,23 @@ add_filter(
 
 		return $content . render_block( [
 			'blockName' => 'hm-user-activation/registration-form',
-			'attrs'     => [],
+			'attrs'     => $_COOKIE['hmua_test_render_registration_form'] === 'hidden' ? [ 'showUsername' => false ] : [],
 		] );
 	},
 	20
+);
+
+/**
+ * With the `hmua_test_generated_user_name` cookie set, make the username
+ * generated from an email address that value, for example one core rejects.
+ */
+add_filter(
+	'hm_user_activation_generated_user_name',
+	static function ( $user_name ) {
+		$forced = sanitize_user( wp_unslash( (string) ( $_COOKIE['hmua_test_generated_user_name'] ?? '' ) ) );
+
+		return $forced === '' ? $user_name : $forced;
+	}
 );
 
 /**

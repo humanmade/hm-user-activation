@@ -518,13 +518,32 @@ function createHelpers(
 		 * Have the registration page's content end with the Registration Form
 		 * block rendered from PHP, for one browser context.
 		 *
-		 * @param {import('@playwright/test').BrowserContext} context Browser context.
+		 * @param {import('@playwright/test').BrowserContext} context        Browser context.
+		 * @param {Object}                                    [options]      Options.
+		 * @param {boolean}                                   [options.hidden] Render it with "Ask for a username" off.
 		 */
-		async useRenderedRegistrationForm( context ) {
+		async useRenderedRegistrationForm( context, { hidden = false } = {} ) {
 			await context.addCookies( [
 				{
 					name: 'hmua_test_render_registration_form',
-					value: '1',
+					value: hidden ? 'hidden' : '1',
+					url: baseURL,
+				},
+			] );
+		},
+
+		/**
+		 * Make the username generated for a registration that value, for one
+		 * browser context. Use a name core rejects to see its error.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context  Browser context.
+		 * @param {string}                                    userName Username to return.
+		 */
+		async useGeneratedUserName( context, userName ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_generated_user_name',
+					value: userName,
 					url: baseURL,
 				},
 			] );

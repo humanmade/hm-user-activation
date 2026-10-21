@@ -224,6 +224,62 @@ test.describe( 'Registration form without a username field', () => {
 		);
 	} );
 
+	test( 'generates a username for a form in a template that has the field off', async ( {
+		page,
+		hmua,
+		context,
+		registrationPage,
+	} ) => {
+		// No block in the page content and no filter: only the rendered block's own setting.
+		await hmua.useRenderedRegistrationForm( context, { hidden: true } );
+
+		const { email } = hmua.newIdentity();
+		const login = expectedLogin( email );
+		hmua.track( login );
+
+		await page.goto( await registrationPage( NO_FORM_BLOCK ) );
+
+		const form = registrationForm( page );
+		await expect( form ).toHaveCount( 1 );
+		await expect( form.getByLabel( 'Username' ) ).toHaveCount( 0 );
+
+		await form.getByLabel( 'Email address' ).fill( email );
+		await form.getByRole( 'button', { name: 'Register' } ).click();
+
+		await expect( page.locator( '.hm-registration-success' ) ).toBeVisible();
+		await expect( page.locator( '.hm-registration-errors' ) ).toHaveCount( 0 );
+		expect( ( await hmua.getSignupStateByEmail( email ) ).user_login ).toBe(
+			login
+		);
+	} );
+
+	test( 'shows a username error with the generic errors when the field is hidden', async ( {
+		page,
+		hmua,
+		context,
+		registrationPage,
+	} ) => {
+		await hmua.useGeneratedUserName( context, 'ab' );
+
+		const { email } = hmua.newIdentity();
+		hmua.track( expectedLogin( email ) );
+
+		await page.goto( await registrationPage( EMAIL_ONLY_FORM ) );
+
+		const form = registrationForm( page );
+		await form.getByLabel( 'Email address' ).fill( email );
+		await form.getByRole( 'button', { name: 'Register' } ).click();
+
+		await expect( page.locator( '#hm-registration-generic-error' ) ).toContainText(
+			'Username must be at least 4 characters.'
+		);
+		await expect( page.locator( '.hm-registration-success' ) ).toHaveCount( 0 );
+		await expect( form.locator( '#hm-user-name-error' ) ).toHaveCount( 0 );
+		expect( ( await hmua.getSignupStateByEmail( email ) ).signup_exists ).toBe(
+			false
+		);
+	} );
+
 	test( 'asks for a username when the filter does not turn it off', async ( {
 		page,
 		hmua,
@@ -237,5 +293,33 @@ test.describe( 'Registration form without a username field', () => {
 		await expect(
 			registrationForm( page ).getByLabel( 'Username' )
 		).toBeVisible();
+	} );
+
+	test( 'the default form still shows the username error next to the field', async ( {
+		page,
+		hmua,
+		registrationPage,
+	} ) => {
+		const { email } = hmua.newIdentity();
+		hmua.track( expectedLogin( email ) );
+
+		await page.goto( await registrationPage( DEFAULT_FORM_BLOCK ) );
+
+		const form = registrationForm( page );
+		await form.getByLabel( 'Email address' ).fill( email );
+
+		// The browser would stop an empty required field, so post it empty by hand.
+		await form.getByLabel( 'Username' ).evaluate( ( input ) => {
+			input.required = false;
+		} );
+		await form.getByRole( 'button', { name: 'Register' } ).click();
+
+		await expect( page.locator( '#hm-user-name-error' ) ).toContainText(
+			'Please enter a username'
+		);
+		await expect( page.locator( '#hm-registration-generic-error' ) ).toHaveCount( 0 );
+		expect( ( await hmua.getSignupStateByEmail( email ) ).signup_exists ).toBe(
+			false
+		);
 	} );
 } );
