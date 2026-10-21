@@ -9,6 +9,7 @@
 
 namespace HM\UserActivation\Activation;
 
+use HM\UserActivation\CompleteAccount;
 use HM\UserActivation\Emails;
 use HM\UserActivation\PasswordReset;
 use HM\UserActivation\Resend;
@@ -82,6 +83,12 @@ function maybe_process_activation(): void {
 		return;
 	}
 
+	// In this mode a key only shows the form, and the form's POST activates.
+	if ( CompleteAccount\is_enabled() ) {
+		CompleteAccount\maybe_process( $page_id );
+		return;
+	}
+
 	// POST: manual form submission.
 	if ( ! empty( $_POST['_hm_activation_nonce'] ) ) {
 		if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_hm_activation_nonce'] ) ), 'hm_activation' ) ) {
@@ -108,26 +115,10 @@ function maybe_process_activation(): void {
 		return;
 	}
 
-	// GET: the key arrived in the URL. Stash it in a cookie and reload the page
-	// without it, so the key stays out of browser history, Referer headers and
-	// access logs, and cannot be shared by copying the address bar. Mirrors the
-	// way core handles password reset keys on wp-login.php.
-	if ( isset( $_GET['key'] ) ) {
-		$key = sanitize_text_field( wp_unslash( $_GET['key'] ) );
-
-		if ( $key ) {
-			// Headers already sent means no cookie and no redirect, so use the
-			// key from the URL for this request rather than losing it.
-			if ( ! Security\set_key_cookie( Security\ACTIVATION_COOKIE, $key, $page_id ) ) {
-				process( $key, (bool) get_option( 'hm_activation_auto_login', false ) );
-				return;
-			}
-
-			// Target is our own permalink, not user input — see the note in
-			// maybe_redirect_wp_activate() on wp_redirect() vs wp_safe_redirect().
-			wp_redirect( get_permalink( $page_id ) ?: home_url( '/' ), 302 );
-			exit;
-		}
+	$key = stash_url_key( $page_id );
+	if ( $key ) {
+		process( $key, (bool) get_option( 'hm_activation_auto_login', false ) );
+		return;
 	}
 
 	// A key stashed from a previous request. It is read once and dropped
@@ -141,6 +132,31 @@ function maybe_process_activation(): void {
 		Security\clear_key_cookie( Security\ACTIVATION_COOKIE, $page_id );
 		process( $key, (bool) get_option( 'hm_activation_auto_login', false ) );
 	}
+}
+
+/**
+ * Move a key in the URL into the key cookie and reload the page without it.
+ *
+ * This keeps the key out of browser history, Referer headers and access logs,
+ * and stops it being shared by copying the address bar. Mirrors the way core
+ * handles password reset keys on wp-login.php.
+ *
+ * @param int $page_id Activation page ID.
+ * @return string The key when headers were already sent, so there is no cookie
+ *                or redirect and this request has to use it. '' when the URL
+ *                has no key.
+ */
+function stash_url_key( int $page_id ): string {
+	$key = sanitize_text_field( wp_unslash( $_GET['key'] ?? '' ) );
+
+	if ( ! $key || ! Security\set_key_cookie( Security\ACTIVATION_COOKIE, $key, $page_id ) ) {
+		return $key;
+	}
+
+	// Target is our own permalink, not user input — see the note in
+	// maybe_redirect_wp_activate() on wp_redirect() vs wp_safe_redirect().
+	wp_redirect( get_permalink( $page_id ) ?: home_url( '/' ), 302 );
+	exit;
 }
 
 /**
@@ -218,14 +234,38 @@ function process( string $key, bool $auto_login ): void {
 		}
 	}
 
-	$login_url = Emails\get_login_url( $user_id, $meta );
+	finish( $user_id, $meta, $reset_url, $needs_password_setup );
+
+	// Log in last, so a wp_login handler that exits (two-factor plugins do)
+	// cannot stop the welcome email. Never replace a session that is already
+	// open: following someone else's activation link must not sign the visitor
+	// out of their own account and into that one.
+	if ( $auto_login && $user && ! is_user_logged_in() ) {
+		wp_set_current_user( $user_id );
+		wp_set_auth_cookie( $user_id );
+
+		// Let security, audit and two-factor plugins see the login.
+		do_action( 'wp_login', $user->user_login, $user );
+	}
+}
+
+/**
+ * Store a successful activation, send the welcome email and fire the activated action.
+ *
+ * @param int    $user_id              Activated user ID.
+ * @param array  $meta                 Signup meta.
+ * @param string $reset_url            Set-password link, or '' when there is none.
+ * @param bool   $needs_password_setup Whether the user still has to set a password.
+ */
+function finish( int $user_id, array $meta, string $reset_url, bool $needs_password_setup ): void {
+	$user = get_user_by( 'id', $user_id );
 
 	result( [
 		'success'   => true,
 		'user_id'   => $user_id,
 		'username'  => $user ? $user->user_login : '',
 		'reset_url' => $reset_url,
-		'login_url' => $login_url,
+		'login_url' => Emails\get_login_url( $user_id, $meta ),
 		'meta'      => $meta,
 	] );
 
@@ -254,18 +294,6 @@ function process( string $key, bool $auto_login ): void {
 	 * @param array $meta    Signup meta.
 	 */
 	do_action( 'hm_user_activation_activated', $user_id, $meta );
-
-	// Log in last, so a wp_login handler that exits (two-factor plugins do)
-	// cannot stop the welcome email. Never replace a session that is already
-	// open: following someone else's activation link must not sign the visitor
-	// out of their own account and into that one.
-	if ( $auto_login && $user && ! is_user_logged_in() ) {
-		wp_set_current_user( $user_id );
-		wp_set_auth_cookie( $user_id );
-
-		// Let security, audit and two-factor plugins see the login.
-		do_action( 'wp_login', $user->user_login, $user );
-	}
 }
 
 /**

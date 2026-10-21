@@ -33,6 +33,12 @@ $forgot_link = sprintf(
 	esc_html__( 'Forgot your password?', 'hm-user-activation' )
 );
 
+// Shown after "Complete your account" sends the user here.
+$notice = empty( $_GET[ HM\UserActivation\CompleteAccount\QUERY_ARG ] ) ? '' : sprintf(
+	'<p class="hm-login-form__notice" role="status">%s</p>',
+	esc_html( HM\UserActivation\CompleteAccount\ready_message() )
+);
+
 $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-login-form' ] );
 
-echo '<div ' . $wrapper_attributes . '>' . $form . $forgot_link . '</div>'; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- wp_login_form() and get_block_wrapper_attributes() return escaped markup
+echo '<div ' . $wrapper_attributes . '>' . $notice . $form . $forgot_link . '</div>'; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- wp_login_form() and get_block_wrapper_attributes() return escaped markup
