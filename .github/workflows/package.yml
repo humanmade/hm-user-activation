@@ -41,7 +41,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          sed -i "s/__VERSION__/0.0.0-check/g" hm-user-activation.php
+          .github/scripts/stamp-version.sh 0.0.0-check
           git add -f build
           git add hm-user-activation.php
           git commit -q -m "Package check"

@@ -63,7 +63,7 @@ jobs:
           npm run build
 
       - name: Stamp the version
-        run: sed -i "s/__VERSION__/${VERSION}/g" hm-user-activation.php
+        run: .github/scripts/stamp-version.sh "${VERSION}"
 
       - name: Commit the build and tag it
         run: |
@@ -86,6 +86,12 @@ jobs:
 
       - name: Check the ZIP
         run: .github/scripts/check-archive.sh "dist/hm-user-activation-${VERSION}.zip" "${VERSION}"
+
+      - name: Keep the ZIP
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hm-user-activation-${{ inputs.version }}
+          path: dist/hm-user-activation-${{ inputs.version }}.zip
 
       - name: Push the tag
         run: git push origin "refs/tags/${VERSION}"

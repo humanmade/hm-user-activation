@@ -379,11 +379,15 @@ The workflow does this:
 
 1. It stops if the version is not `X.Y.Z` or the tag already exists.
 2. It runs `npm ci` and `npm run build` on `main`.
-3. It replaces `__VERSION__` in `hm-user-activation.php` with the version.
+3. It replaces `__VERSION__` in `hm-user-activation.php` with the version, and sets the version in each built `block.json`, so block stylesheets get a new cache key.
 4. It commits `build/` and the versioned plugin file, and tags that commit. The commit is only on the tag, not on `main`.
 5. It builds the ZIP with `git archive` and checks it with `.github/scripts/check-archive.sh`. The ZIP must contain `build/` and the version, and must not contain sources, tests or tooling.
-6. It pushes the tag, then publishes a GitHub release with the ZIP and generated notes.
+6. It saves the ZIP as a workflow artifact, pushes the tag, then publishes a GitHub release with the ZIP and generated notes.
+
+If the run fails after the tag was pushed, don't run it again, because the tag already exists. Download the ZIP from the run's artifacts, or make it again with `git archive --format=zip --prefix=hm-user-activation/ -o hm-user-activation-1.2.0.zip 1.2.0`, then run `gh release create 1.2.0 hm-user-activation-1.2.0.zip --verify-tag --generate-notes`.
 
 Packagist picks up the new tag by itself. Tags are never moved or deleted, because Packagist does not accept a changed tag. If a release is wrong, release a new patch version.
+
+The **Build to release branch** workflow needs the `release` branch to exist. It was created once from `main` with `git push origin main:release`. If it is ever deleted, create it the same way.
 
 What ships is set by the `export-ignore` rules in `.gitattributes`. The **Package** workflow builds and checks a ZIP the same way on every pull request, so a change that would break the release fails there first.

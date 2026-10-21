@@ -2,7 +2,7 @@
 #
 # Check that a plugin ZIP made by `git archive` contains the built blocks and
 # none of the source, test or tooling files. With a version, also check that
-# it was stamped into the plugin header and constant.
+# it was stamped into the plugin header, the constant and each built block.json.
 #
 # Usage: check-archive.sh <zip> [version]
 
@@ -31,6 +31,10 @@ for block in activation-form login-form password-reset registration-form resend-
 	)
 done
 
+for block in activation-form password-reset registration-form; do
+	required+=( "build/blocks/${block}/style-index.css" )
+done
+
 for file in "${required[@]}"; do
 	if ! grep -qxF "${prefix}${file}" <<< "$files"; then
 		echo "::error::${zip} is missing ${file}"
@@ -53,6 +57,13 @@ if [ -n "$version" ]; then
 		echo "::error::hm-user-activation.php in ${zip} does not have version ${version}"
 		status=1
 	fi
+
+	for block in activation-form login-form password-reset registration-form resend-form; do
+		if ! unzip -p "$zip" "${prefix}build/blocks/${block}/block.json" | grep -qF "\"version\": \"${version}\""; then
+			echo "::error::build/blocks/${block}/block.json in ${zip} does not have version ${version}"
+			status=1
+		fi
+	done
 fi
 
 exit "$status"
