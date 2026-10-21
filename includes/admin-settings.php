@@ -52,6 +52,12 @@ function register_settings(): void {
 		'default'           => false,
 	] );
 
+	register_setting( OPTION_GROUP, 'hm_activation_complete_profile', [
+		'type'              => 'boolean',
+		'sanitize_callback' => 'rest_sanitize_boolean',
+		'default'           => false,
+	] );
+
 	register_setting( OPTION_GROUP, 'hm_activation_link_lifetime', [
 		'type'              => 'integer',
 		'sanitize_callback' => static fn( $value ): int => max( 0, (int) $value ),
@@ -143,7 +149,20 @@ function register_sections_and_fields(): void {
 		[
 			'label_for'   => 'hm_activation_auto_login',
 			'option'      => 'hm_activation_auto_login',
-			'description' => __( 'Automatically log users in after they activate their account.', 'hm-user-activation' ),
+			'description' => __( 'Automatically log users in after they activate their account. Not used when "Complete your account" is on.', 'hm-user-activation' ),
+		]
+	);
+
+	add_settings_field(
+		'hm_activation_complete_profile',
+		__( 'Complete your account', 'hm-user-activation' ),
+		__NAMESPACE__ . '\\field_checkbox',
+		PAGE_SLUG,
+		'hm_activation_general',
+		[
+			'label_for'   => 'hm_activation_complete_profile',
+			'option'      => 'hm_activation_complete_profile',
+			'description' => __( 'Activation links open a form where the user chooses a password. The account is activated when they submit it. They are not logged in automatically, so any login checks the site has still run.', 'hm-user-activation' ),
 		]
 	);
 
@@ -263,7 +282,7 @@ function register_sections_and_fields(): void {
 		__( 'Welcome email (sent on activation)', 'hm-user-activation' ),
 		static function () {
 			echo '<p>';
-			esc_html_e( 'Optionally sent to the user after successful activation.', 'hm-user-activation' );
+			esc_html_e( 'Optionally sent to the user after successful activation. When "Complete your account" is on, the user has already chosen a password, so {password_reset_link} is the log in URL and the default body has no password step.', 'hm-user-activation' );
 			echo '</p><p><strong>';
 			esc_html_e( 'Placeholders:', 'hm-user-activation' );
 			echo '</strong> <code>{site_name}</code>, <code>{site_url}</code>, <code>{network_name}</code>, <code>{username}</code>, <code>{display_name}</code>, <code>{first_name}</code>, <code>{last_name}</code>, <code>{login_url}</code>, <code>{password_reset_link}</code></p>';

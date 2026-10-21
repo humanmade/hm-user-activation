@@ -30,6 +30,7 @@ if ( ! is_multisite() ) {
 require_once HM_USER_ACTIVATION_DIR . 'includes/security.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/registration.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/activation.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/complete-account.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/emails.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/resend.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/password-reset.php';
@@ -70,6 +71,7 @@ function multisite_required_notice(): void {
 Security\bootstrap();
 Registration\bootstrap();
 Activation\bootstrap();
+CompleteAccount\bootstrap();
 Emails\bootstrap();
 Resend\bootstrap();
 PasswordReset\bootstrap();

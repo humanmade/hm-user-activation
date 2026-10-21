@@ -103,11 +103,11 @@ function createHelpers(
 		/**
 		 * Wait for an email to an address, optionally matching its subject.
 		 *
-		 * @param {string}  to                Recipient address.
-		 * @param {Object}  [options]         Options.
-		 * @param {RegExp}  [options.subject] Subject the email must match.
-		 * @param {number}  [options.count]   How many matching emails to wait for.
-		 * @param {number}  [options.timeout] Milliseconds to wait.
+		 * @param {string} to                Recipient address.
+		 * @param {Object} [options]         Options.
+		 * @param {RegExp} [options.subject] Subject the email must match.
+		 * @param {number} [options.count]   How many matching emails to wait for.
+		 * @param {number} [options.timeout] Milliseconds to wait.
 		 * @return {Promise<Object>} The newest matching email, with `links`.
 		 */
 		async waitFor( to, { subject, count = 1, timeout = 10000 } = {} ) {
@@ -151,9 +151,9 @@ function createHelpers(
 		/**
 		 * Register a pending signup, which sends the activation email.
 		 *
-		 * @param {Object}  [options]           Options.
-		 * @param {Object}  [options.meta]      Meta stored with the signup.
-		 * @param {number}  [options.ageHours]  Backdate the signup by this many hours.
+		 * @param {Object} [options]          Options.
+		 * @param {Object} [options.meta]     Meta stored with the signup.
+		 * @param {number} [options.ageHours] Backdate the signup by this many hours.
 		 * @return {Promise<{login: string, email: string, key: string}>} The signup.
 		 */
 		async createSignup( { meta, ageHours } = {} ) {
@@ -173,14 +173,76 @@ function createHelpers(
 		},
 
 		/**
+		 * Register a pending site signup, which sends the activation email.
+		 *
+		 * @param {Object} [options]       Options.
+		 * @param {string} [options.login] Username to sign up with instead of a new one.
+		 * @return {Promise<{login: string, email: string, key: string, path: string}>} The signup.
+		 */
+		async createBlogSignup( { login } = {} ) {
+			const identity = this.newIdentity();
+			const path = `/hmua-blog-${ uniqueId() }/`;
+			const data = await getJson(
+				await request.post( routeUrl( 'blog-signup' ), {
+					form: {
+						user_login: login || identity.login,
+						user_email: identity.email,
+						path,
+					},
+				} )
+			);
+
+			return {
+				login: data.user_login,
+				email: data.user_email,
+				key: data.activation_key,
+				path,
+			};
+		},
+
+		/**
+		 * Whether a signup is still waiting and whether its site and user exist.
+		 *
+		 * @param {string} login  Username the signup is for.
+		 * @param {string} [path] Site path to look for.
+		 * @return {Promise<{signup_exists: boolean, signup_active: boolean, user_exists: boolean, site_exists: boolean}>} State.
+		 */
+		async getSignupState( login, path = '' ) {
+			return getJson(
+				await request.get(
+					routeUrl( 'signup-state', { user_login: login, path } )
+				)
+			);
+		},
+
+		/**
+		 * Delete the signups, site and user a test made.
+		 *
+		 * @param {string} login  Username.
+		 * @param {string} [path] Site path, if a site may have been made.
+		 */
+		async cleanup( login, path = '' ) {
+			await getJson(
+				await request.delete(
+					routeUrl( 'signup-state', { user_login: login, path } )
+				)
+			);
+		},
+
+		/**
 		 * Create an active user with a known password.
 		 *
-		 * @param {string}                     password Password to set.
+		 * @param {string}                       password Password to set.
 		 * @param {'subscriber'|'administrator'} [role]   Role on the main site. Administrators are not super admins.
+		 * @param {string}                       [login]  Username to use instead of a new one.
 		 * @return {Promise<{login: string, email: string, password: string}>} The user.
 		 */
-		async createUser( password, role = 'subscriber' ) {
+		async createUser( password, role = 'subscriber', login ) {
 			const identity = this.newIdentity();
+
+			if ( login ) {
+				identity.login = login;
+			}
 
 			await getJson(
 				await request.post( routeUrl( 'user' ), {
@@ -217,7 +279,9 @@ function createHelpers(
 		 * @return {Promise<{exists: boolean, value: *}>} The stored value.
 		 */
 		async getOption( name ) {
-			return getJson( await request.get( routeUrl( 'option', { name } ) ) );
+			return getJson(
+				await request.get( routeUrl( 'option', { name } ) )
+			);
 		},
 
 		/**
@@ -234,11 +298,11 @@ function createHelpers(
 		/**
 		 * Create a page. The content is saved as given, with no filtering.
 		 *
-		 * @param {Object}            page            Page.
-		 * @param {string}            page.title      Title.
-		 * @param {string}            page.slug       Slug.
-		 * @param {string}            page.content    Block markup.
-		 * @param {'publish'|'draft'} [page.status]   Status. Defaults to publish.
+		 * @param {Object}            page          Page.
+		 * @param {string}            page.title    Title.
+		 * @param {string}            page.slug     Slug.
+		 * @param {string}            page.content  Block markup.
+		 * @param {'publish'|'draft'} [page.status] Status. Defaults to publish.
 		 * @return {Promise<number>} Page id.
 		 */
 		async createPage( { title, slug, content, status = 'publish' } ) {
@@ -317,7 +381,9 @@ function createHelpers(
 		 * @return {Promise<Object>} `{ exists, ... }`.
 		 */
 		async getUser( login ) {
-			return getJson( await request.get( routeUrl( 'user', { login } ) ) );
+			return getJson(
+				await request.get( routeUrl( 'user', { login } ) )
+			);
 		},
 
 		/**
@@ -352,6 +418,54 @@ function createHelpers(
 				},
 			] );
 		},
+
+		/**
+		 * Make every account report that it needs a password set-up, for one
+		 * browser context.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context Browser context.
+		 */
+		async useForcedPasswordSetup( context ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_force_password_setup',
+					value: '1',
+					url: baseURL,
+				},
+			] );
+		},
+
+		/**
+		 * Have a hook on activation set the password `hook-set-password`, for
+		 * one browser context.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context Browser context.
+		 */
+		async useActivationHookPassword( context ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_activate_sets_password',
+					value: '1',
+					url: baseURL,
+				},
+			] );
+		},
+
+		/**
+		 * Add the test first name field to the "Complete your account" form
+		 * for one browser context.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context Browser context.
+		 */
+		async useCompleteFields( context ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_complete_fields',
+					value: '1',
+					url: baseURL,
+				},
+			] );
+		},
 	};
 }
 
@@ -366,6 +480,9 @@ const test = base.extend( {
 	/**
 	 * Change plugin options for one test. Every option touched is put back
 	 * to its original value, or deleted if it did not exist, afterwards.
+	 * @param root0
+	 * @param root0.hmua
+	 * @param use
 	 */
 	options: async ( { hmua }, use ) => {
 		const originals = new Map();

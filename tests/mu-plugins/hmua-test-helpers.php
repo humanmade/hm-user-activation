@@ -64,6 +64,31 @@ add_filter(
 );
 
 /**
+ * With the `hmua_test_force_password_setup` cookie set, say every account
+ * needs to set a password.
+ */
+add_filter(
+	'hm_user_activation_needs_password_setup',
+	static function ( bool $needs ): bool {
+		return empty( $_COOKIE['hmua_test_force_password_setup'] ) ? $needs : true;
+	},
+	20
+);
+
+/**
+ * With the `hmua_test_activate_sets_password` cookie set, give each activated
+ * user a password, as a site's own activation hook might.
+ */
+add_action(
+	'wpmu_activate_user',
+	static function ( $user_id ): void {
+		if ( ! empty( $_COOKIE['hmua_test_activate_sets_password'] ) ) {
+			wp_set_password( 'hook-set-password', (int) $user_id );
+		}
+	}
+);
+
+/**
  * Record the meta passed to the activated action against the user.
  */
 add_action(
@@ -131,6 +156,55 @@ add_action(
 			$errors->add( 'hmua_test_policy', sprintf( 'Test policy: use at least %d characters.', $min ) );
 		}
 	}
+);
+
+/**
+ * A stand-in for a site adding its own field to the "Complete your account"
+ * form: with the `hmua_test_complete_fields` cookie set, ask for a first name,
+ * require it, and save it. The keys of the fields the action receives are
+ * recorded in user meta so specs can check what was passed.
+ */
+add_action(
+	'hm_user_activation_complete_account_fields',
+	static function ( $signup, $meta, $fields ): void {
+		if ( empty( $_COOKIE['hmua_test_complete_fields'] ) ) {
+			return;
+		}
+
+		printf(
+			'<p><label for="hmua-first-name">First name</label> <input type="text" id="hmua-first-name" name="first_name" value="%s"></p>',
+			esc_attr( (string) ( $fields['first_name'] ?? '' ) )
+		);
+	},
+	10,
+	3
+);
+
+add_filter(
+	'hm_user_activation_complete_account_errors',
+	static function ( $errors, $fields ) {
+		if ( ! empty( $_COOKIE['hmua_test_complete_fields'] ) && trim( (string) ( $fields['first_name'] ?? '' ) ) === '' ) {
+			$errors->add( 'hmua_test_first_name', 'Test: first name is required.' );
+		}
+
+		return $errors;
+	},
+	10,
+	2
+);
+
+add_action(
+	'hm_user_activation_complete_account',
+	static function ( int $user_id, array $meta, array $fields ): void {
+		if ( empty( $_COOKIE['hmua_test_complete_fields'] ) ) {
+			return;
+		}
+
+		update_user_meta( $user_id, 'first_name', sanitize_text_field( (string) ( $fields['first_name'] ?? '' ) ) );
+		update_user_meta( $user_id, 'hmua_test_complete_field_keys', array_keys( $fields ) );
+	},
+	10,
+	3
 );
 
 /**
@@ -245,6 +319,25 @@ add_action(
 			'methods'             => 'POST',
 			'callback'            => __NAMESPACE__ . '\\create_signup',
 			'permission_callback' => $open,
+		] );
+
+		register_rest_route( 'hmua-tests/v1', '/blog-signup', [
+			'methods'             => 'POST',
+			'callback'            => __NAMESPACE__ . '\\create_blog_signup',
+			'permission_callback' => $open,
+		] );
+
+		register_rest_route( 'hmua-tests/v1', '/signup-state', [
+			[
+				'methods'             => 'GET',
+				'callback'            => __NAMESPACE__ . '\\get_signup_state',
+				'permission_callback' => $open,
+			],
+			[
+				'methods'             => 'DELETE',
+				'callback'            => __NAMESPACE__ . '\\cleanup_signup',
+				'permission_callback' => $open,
+			],
 		] );
 
 		register_rest_route( 'hmua-tests/v1', '/option', [
@@ -412,6 +505,109 @@ function create_signup( \WP_REST_Request $request ): array {
 			$wpdb->prepare( "SELECT activation_key FROM {$wpdb->signups} WHERE user_login = %s", $user_login )
 		),
 	];
+}
+
+/**
+ * Register a pending site signup, which sends the activation email.
+ *
+ * `path` is the new site's path in a subdirectory network, such as
+ * `/hmua-blog-abc/`.
+ *
+ * @return array|\WP_Error
+ */
+function create_blog_signup( \WP_REST_Request $request ) {
+	global $wpdb;
+
+	$path = (string) $request->get_param( 'path' );
+
+	if ( is_subdomain_install() || ! is_test_path( $path ) ) {
+		return new \WP_Error( 'hmua_tests_blog', 'Use a /hmua-blog-… path on a subdirectory network.', [ 'status' => 400 ] );
+	}
+
+	$user_login = sanitize_user( (string) $request->get_param( 'user_login' ), true );
+	$user_email = sanitize_email( (string) $request->get_param( 'user_email' ) );
+
+	wpmu_signup_blog( get_network()->domain, $path, 'Test site', $user_login, $user_email );
+
+	return [
+		'user_login'     => $user_login,
+		'user_email'     => $user_email,
+		'path'           => $path,
+		'activation_key' => (string) $wpdb->get_var(
+			$wpdb->prepare( "SELECT activation_key FROM {$wpdb->signups} WHERE user_login = %s AND path = %s", $user_login, $path )
+		),
+	];
+}
+
+/**
+ * Whether a path is one the helpers may create or delete a site at.
+ */
+function is_test_path( string $path ): bool {
+	return (bool) preg_match( '#^/hmua-blog-[a-z0-9]+/$#', $path );
+}
+
+/**
+ * Whether a signup is still waiting, and whether a site and user exist.
+ * `path` is optional and only needed to look for a site.
+ *
+ * @return array|\WP_Error
+ */
+function get_signup_state( \WP_REST_Request $request ) {
+	global $wpdb;
+
+	$user_login = sanitize_user( (string) $request->get_param( 'user_login' ), true );
+	$path       = (string) $request->get_param( 'path' );
+
+	$signup = $wpdb->get_row(
+		$wpdb->prepare( "SELECT active FROM {$wpdb->signups} WHERE user_login = %s ORDER BY signup_id DESC", $user_login )
+	);
+
+	return [
+		'signup_exists' => (bool) $signup,
+		'signup_active' => $signup ? (bool) (int) $signup->active : false,
+		'user_exists'   => (bool) username_exists( $user_login ),
+		'site_exists'   => $path && (bool) $wpdb->get_var(
+			$wpdb->prepare( "SELECT blog_id FROM {$wpdb->blogs} WHERE domain = %s AND path = %s", get_network()->domain, $path )
+		),
+	];
+}
+
+/**
+ * Remove the signups, site and user a test made. Only `hmua` usernames and
+ * `/hmua-blog-…` paths are touched.
+ *
+ * @return array|\WP_Error
+ */
+function cleanup_signup( \WP_REST_Request $request ) {
+	global $wpdb;
+
+	$user_login = sanitize_user( (string) $request->get_param( 'user_login' ), true );
+	$path       = (string) $request->get_param( 'path' );
+
+	if ( strpos( $user_login, 'hmua' ) !== 0 || ( $path && ! is_test_path( $path ) ) ) {
+		return new \WP_Error( 'hmua_tests_cleanup', 'Only hmua users and /hmua-blog-… paths can be removed.', [ 'status' => 400 ] );
+	}
+
+	require_once ABSPATH . 'wp-admin/includes/ms.php';
+	require_once ABSPATH . 'wp-admin/includes/user.php';
+
+	$wpdb->delete( $wpdb->signups, [ 'user_login' => $user_login ] );
+
+	$blog_id = $path ? (int) $wpdb->get_var(
+		$wpdb->prepare( "SELECT blog_id FROM {$wpdb->blogs} WHERE domain = %s AND path = %s", get_network()->domain, $path )
+	) : 0;
+
+	if ( $blog_id > 1 ) {
+		wpmu_delete_blog( $blog_id, true );
+	}
+
+	$user = get_user_by( 'login', $user_login );
+
+	if ( $user ) {
+		wpmu_delete_user( $user->ID );
+	}
+
+	return [ 'cleaned' => true ];
 }
 
 /**
@@ -652,7 +848,7 @@ function create_user( \WP_REST_Request $request ) {
 }
 
 /**
- * Look up a user by login, reporting whether they exist and their roles.
+ * Look up a user by login, reporting whether they exist, their roles and test meta.
  */
 function get_user( \WP_REST_Request $request ): array {
 	$user = get_user_by( 'login', (string) $request->get_param( 'login' ) );
@@ -668,5 +864,7 @@ function get_user( \WP_REST_Request $request ): array {
 		'roles'           => array_values( $user->roles ),
 		'is_member'       => is_user_member_of_blog( $user->ID, get_current_blog_id() ),
 		'activation_meta' => get_user_meta( $user->ID, 'hmua_test_activated_meta', true ) ?: null,
+		'first_name'      => (string) get_user_meta( $user->ID, 'first_name', true ),
+		'complete_keys'   => get_user_meta( $user->ID, 'hmua_test_complete_field_keys', true ) ?: null,
 	];
 }
