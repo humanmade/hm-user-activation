@@ -113,17 +113,39 @@ function default_activation_page_content(): string {
 <p></p>
 <!-- /wp:paragraph -->
 
-<!-- wp:buttons -->
-<div class="wp-block-buttons"><!-- wp:button {"metadata":{"bindings":{"url":{"source":"hm-user-activation/reset-url"}}}} -->
+
+BLOCKS
+	. activation_buttons_content()
+	. <<<'BLOCKS'
+</div>
+<!-- /wp:group -->
+BLOCKS;
+}
+
+/**
+ * The "Set your password" and "Log in" buttons from the activation page's success group.
+ *
+ * @param bool $login Whether to include the "Log in" button.
+ */
+function activation_buttons_content( bool $login = true ): string {
+	$reset_button = <<<'BLOCKS'
+<!-- wp:button {"metadata":{"bindings":{"url":{"source":"hm-user-activation/reset-url"}}}} -->
 <div class="wp-block-button"><a class="wp-block-button__link wp-element-button">Set your password</a></div>
 <!-- /wp:button -->
+BLOCKS;
+
+	$login_button = <<<'BLOCKS'
+
 
 <!-- wp:button {"className":"is-style-outline","metadata":{"bindings":{"url":{"source":"hm-user-activation/login-url"}}}} -->
 <div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button">Log in</a></div>
-<!-- /wp:button --></div>
-<!-- /wp:buttons --></div>
-<!-- /wp:group -->
+<!-- /wp:button -->
 BLOCKS;
+
+	return "<!-- wp:buttons -->\n<div class=\"wp-block-buttons\">"
+		. $reset_button
+		. ( $login ? $login_button : '' )
+		. "</div>\n<!-- /wp:buttons -->";
 }
 
 /**

@@ -36,6 +36,7 @@ require_once HM_USER_ACTIVATION_DIR . 'includes/password-reset.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/admin-settings.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/page-setup.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/block-bindings.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/upgrade.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/class-activation.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/class-emails.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/class-block-bindings.php';
@@ -45,12 +46,14 @@ require_once HM_USER_ACTIVATION_DIR . 'includes/class-admin-settings.php';
 register_activation_hook( __FILE__, __NAMESPACE__ . '\\on_plugin_activation' );
 
 /**
- * Plugin activation: create the draft registration, activation and password reset pages.
+ * Plugin activation: create the draft registration, activation and password reset pages,
+ * and upgrade any data an older version left behind.
  */
 function on_plugin_activation(): void {
 	PageSetup\create_registration_page();
 	PageSetup\create_activation_page();
 	PageSetup\create_password_reset_page();
+	Upgrade\upgrade();
 }
 
 /**
@@ -72,6 +75,7 @@ Resend\bootstrap();
 PasswordReset\bootstrap();
 Admin\bootstrap();
 BlockBindings\bootstrap();
+Upgrade\bootstrap();
 
 // Register blocks and editor assets.
 add_action( 'init', __NAMESPACE__ . '\\register_blocks' );
