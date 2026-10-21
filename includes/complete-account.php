@@ -144,8 +144,13 @@ function process_submission( int $page_id ): void {
 	}
 
 	// Posted values are not trusted after a failed nonce, so the form is
-	// shown again without them.
+	// shown again without them. They are dropped from $_POST too, because
+	// register_form hooks fill their fields in from there.
 	if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_hm_complete_nonce'] ?? '' ) ), 'hm_activation_complete' ) ) {
+		foreach ( array_keys( array_diff_key( $_POST, array_flip( FORM_FIELDS ) ) ) as $name ) {
+			unset( $_POST[ $name ], $_REQUEST[ $name ] );
+		}
+
 		state( [
 			'key'    => $key,
 			'signup' => $signup,
@@ -168,6 +173,19 @@ function process_submission( int $page_id ): void {
 
 	$meta   = signup_meta( $signup );
 	$errors = PasswordReset\validate_new_password( signup_user( $signup ), $pass1, $pass2 );
+
+	// Core's registration validation hooks, as register_new_user() fires
+	// them, so plugins that check fields on wp-login.php?action=register
+	// check them here too. The login and email come from the signup.
+
+	/** This action is documented in wp-includes/user.php */
+	do_action( 'register_post', $signup->user_login, $signup->user_email, $errors );
+
+	/** This filter is documented in wp-includes/user.php */
+	$filtered = apply_filters( 'registration_errors', $errors, $signup->user_login, $signup->user_email );
+	if ( $filtered instanceof \WP_Error ) {
+		$errors = $filtered;
+	}
 
 	/**
 	 * Filters the errors for the completion form, so a site can validate its own fields.

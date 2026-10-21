@@ -35,7 +35,7 @@ if ( $complete ) :
 		<?php if ( $complete['errors'] ) : ?>
 			<div class="hm-activation-form__errors" role="alert">
 				<?php foreach ( $complete['errors'] as $message ) : ?>
-					<p><?php echo esc_html( $message ); ?></p>
+					<p><?php echo wp_kses( $message, [ 'strong' => [], 'a' => [ 'href' => [] ] ] ); ?></p>
 				<?php endforeach; ?>
 			</div>
 		<?php endif; ?>
@@ -83,6 +83,12 @@ if ( $complete ) :
 		</p>
 
 		<?php
+		// Plugins that add fields to wp-login.php?action=register add them here
+		// too, and fill them in again from $_POST after an error.
+
+		/** This action is documented in wp-login.php */
+		do_action( 'register_form' );
+
 		/**
 		 * Fires inside the completion form, before the submit button, so a site can add its own fields.
 		 *
