@@ -25,6 +25,11 @@ test.describe( 'Admin settings', () => {
 		await expect( page.getByLabel( 'Activation page' ) ).not.toHaveValue(
 			'0'
 		);
+		await expect(
+			page.getByRole( 'checkbox', {
+				name: /Same response for known addresses/,
+			} )
+		).not.toBeChecked();
 	} );
 
 	test( 'saves a setting', async ( { page } ) => {

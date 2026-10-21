@@ -205,7 +205,7 @@ function createHelpers(
 		 *
 		 * @param {string} login  Username the signup is for.
 		 * @param {string} [path] Site path to look for.
-		 * @return {Promise<{signup_exists: boolean, signup_active: boolean, user_exists: boolean, site_exists: boolean}>} State.
+		 * @return {Promise<{signup_exists: boolean, signup_active: boolean, meta: ?Object, user_exists: boolean, site_exists: boolean}>} State.
 		 */
 		async getSignupState( login, path = '' ) {
 			return getJson(
@@ -461,6 +461,23 @@ function createHelpers(
 			await context.addCookies( [
 				{
 					name: 'hmua_test_complete_fields',
+					value: '1',
+					url: baseURL,
+				},
+			] );
+		},
+
+		/**
+		 * Add the test company and terms fields, which use only WordPress core
+		 * hooks, to the registration and "Complete your account" forms for one
+		 * browser context.
+		 *
+		 * @param {import('@playwright/test').BrowserContext} context Browser context.
+		 */
+		async useCoreFields( context ) {
+			await context.addCookies( [
+				{
+					name: 'hmua_test_core_fields',
 					value: '1',
 					url: baseURL,
 				},
