@@ -47,7 +47,7 @@ if ( $complete ) :
 			<input
 				type="email"
 				id="hm-activation-email"
-				class="hm-activation-form__input"
+				class="hm-activation-form__input input"
 				value="<?php echo esc_attr( $signup->user_email ); ?>"
 				autocomplete="username"
 				readonly
@@ -62,7 +62,7 @@ if ( $complete ) :
 				type="password"
 				id="hm-activation-pass1"
 				name="pass1"
-				class="hm-activation-form__input"
+				class="hm-activation-form__input input"
 				required
 				autocomplete="new-password"
 			>
@@ -76,7 +76,7 @@ if ( $complete ) :
 				type="password"
 				id="hm-activation-pass2"
 				name="pass2"
-				class="hm-activation-form__input"
+				class="hm-activation-form__input input"
 				required
 				autocomplete="new-password"
 			>
@@ -103,7 +103,7 @@ if ( $complete ) :
 		?>
 
 		<div class="hm-activation-form__submit wp-block-button">
-			<button type="submit" class="hm-activation-form__button wp-block-button__button wp-element-button">
+			<button type="submit" class="hm-activation-form__button wp-block-button__button button <?php echo esc_attr( wp_theme_get_element_class_name( 'button' ) ); ?>">
 				<?php esc_html_e( 'Activate account', 'hm-user-activation' ); ?>
 			</button>
 		</div>
@@ -125,7 +125,7 @@ endif;
 				type="text"
 				id="hm-activation-key"
 				name="activation_key"
-				class="hm-activation-form__input"
+				class="hm-activation-form__input input"
 				required
 				autocomplete="off"
 				placeholder="<?php esc_attr_e( 'Paste your activation key here', 'hm-user-activation' ); ?>"
@@ -133,7 +133,7 @@ endif;
 		</p>
 
 		<div class="hm-activation-form__submit wp-block-button">
-			<button type="submit" class="hm-activation-form__button wp-block-button__button wp-element-button">
+			<button type="submit" class="hm-activation-form__button wp-block-button__button button <?php echo esc_attr( wp_theme_get_element_class_name( 'button' ) ); ?>">
 				<?php esc_html_e( 'Activate account', 'hm-user-activation' ); ?>
 			</button>
 		</div>

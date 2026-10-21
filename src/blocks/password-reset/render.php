@@ -44,7 +44,7 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 				type="password"
 				id="hm-pass1"
 				name="pass1"
-				class="hm-password-reset__input"
+				class="hm-password-reset__input input"
 				required
 				autocomplete="new-password"
 			>
@@ -58,7 +58,7 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 				type="password"
 				id="hm-pass2"
 				name="pass2"
-				class="hm-password-reset__input"
+				class="hm-password-reset__input input"
 				required
 				autocomplete="new-password"
 			>
@@ -73,7 +73,7 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 		?>
 
 		<div class="hm-password-reset__submit wp-block-button">
-			<button type="submit" class="hm-password-reset__button wp-block-button__button wp-element-button">
+			<button type="submit" class="hm-password-reset__button wp-block-button__button button <?php echo esc_attr( wp_theme_get_element_class_name( 'button' ) ); ?>">
 				<?php esc_html_e( 'Set password', 'hm-user-activation' ); ?>
 			</button>
 		</div>
@@ -92,7 +92,7 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 				type="text"
 				id="hm-user-login"
 				name="user_login"
-				class="hm-password-reset__input"
+				class="hm-password-reset__input input"
 				required
 				autocomplete="username"
 			>
@@ -105,7 +105,7 @@ $wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-re
 		?>
 
 		<div class="hm-password-reset__submit wp-block-button">
-			<button type="submit" class="hm-password-reset__button wp-block-button__button wp-element-button">
+			<button type="submit" class="hm-password-reset__button wp-block-button__button button <?php echo esc_attr( wp_theme_get_element_class_name( 'button' ) ); ?>">
 				<?php esc_html_e( 'Get new password', 'hm-user-activation' ); ?>
 			</button>
 		</div>
