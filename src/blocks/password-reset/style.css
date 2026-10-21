@@ -8,3 +8,13 @@
 	flex-direction: column;
 	gap: 0.375em;
 }
+
+.hm-password-reset__field .hm-password-toggle {
+	align-self: flex-start;
+}
+
+/* Themes can give buttons a display value that overrides the hidden attribute. */
+.hm-password-toggle[hidden],
+.hm-password-strength[hidden] {
+	display: none;
+}
