@@ -1,9 +1,13 @@
 # Anything marked `export-ignore` is stripped from `git archive` output, which
 # is how the distributable plugin ZIP is built. This file is therefore the
-# single source of truth for what ships in a release.
+# single source of truth for what ships in a release. The compiled build/
+# directory is git-ignored on main, but the Release workflow commits it into
+# each tag, and it is deliberately not export-ignored, so it ships.
 
 /.github export-ignore
+/src export-ignore
 /tests export-ignore
+/webpack.config.js export-ignore
 /node_modules export-ignore
 /.gitignore export-ignore
 /.gitattributes export-ignore

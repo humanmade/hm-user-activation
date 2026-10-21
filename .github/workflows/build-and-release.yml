@@ -1,0 +1,45 @@
+name: Build to release branch
+
+# Keeps the release branch equal to main plus the built assets, so the latest
+# unreleased code can be installed with Composer as dev-release.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  release-branch:
+    name: Update release branch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Merge and build
+        uses: humanmade/hm-github-actions/.github/actions/build-to-release-branch@04c32a93e52ae987095f144105745a501d6207c8 # v0.2.0
+        with:
+          source_branch: main
+          release_branch: release
+          built_asset_paths: build
+          commit_user_name: github-actions[bot]
+          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          build_script: |
+            npm ci --ignore-scripts
+            npm run build
