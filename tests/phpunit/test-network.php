@@ -484,6 +484,28 @@ class Test_Network extends WP_UnitTestCase {
 		$this->assertNull( $GLOBALS['wpdb']->get_var( "SELECT signup_id FROM {$GLOBALS['wpdb']->signups} WHERE user_login = 'hmuanopage'" ) );
 	}
 
+	public function test_on_site_keeps_the_current_sites_permalink_structure(): void {
+		global $wp_rewrite;
+
+		// This site has plain permalinks and the other site pretty ones.
+		$site_on = $this->site_on;
+		$filter  = static fn() => get_current_blog_id() === $site_on ? '/%postname%/' : '';
+		add_filter( 'pre_option_permalink_structure', $filter );
+		$wp_rewrite->init();
+
+		Sites\activation_page_url( $this->site_on );
+
+		// The other site's cached page structure must not be left behind.
+		$cached = isset( $wp_rewrite->page_structure );
+		$after  = $wp_rewrite->get_page_permastruct();
+
+		remove_filter( 'pre_option_permalink_structure', $filter );
+		$wp_rewrite->init();
+
+		$this->assertFalse( $cached );
+		$this->assertFalse( $after );
+	}
+
 	public function test_on_site_keeps_the_current_sites_rewrite_endpoints(): void {
 		global $wp_rewrite;
 

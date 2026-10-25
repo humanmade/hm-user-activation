@@ -104,9 +104,10 @@ function on_site( int $site_id, callable $callback ) {
 		return null;
 	}
 
-	// init() also drops endpoints and extra rules, so the current site's
-	// copy is put back afterwards rather than rebuilt.
-	$rewrite = clone $wp_rewrite;
+	// init() also drops endpoints and extra rules, and unsets the cached
+	// structures, so the current site's exact state is put back afterwards
+	// rather than rebuilt.
+	$rewrite = get_object_vars( $wp_rewrite );
 
 	switch_to_blog( $site_id );
 	$wp_rewrite->init();
@@ -116,7 +117,11 @@ function on_site( int $site_id, callable $callback ) {
 	} finally {
 		restore_current_blog();
 
-		foreach ( get_object_vars( $rewrite ) as $property => $value ) {
+		foreach ( array_keys( array_diff_key( get_object_vars( $wp_rewrite ), $rewrite ) ) as $property ) {
+			unset( $wp_rewrite->$property );
+		}
+
+		foreach ( $rewrite as $property => $value ) {
 			$wp_rewrite->$property = $value;
 		}
 	}
