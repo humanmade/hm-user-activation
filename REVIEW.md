@@ -9,6 +9,8 @@
 ## Always check
 - `filter_block_visibility()` and every group variation: which request (GET `?key`, POST key, POST resend, redirect flag) shows which group, on the activation page and off it.
 - Signups are network-wide (`$wpdb->signups`); options and pages are per site. Check which blog's settings an email or link uses.
+- The plugin is network-activated and loads on every site. Every hook must do nothing on a site where `Sites\is_enabled()` is false, except the network admin Edit Site field, the Sign ups screen filters and the wp-activate.php guard, which act on the signup's own site.
+- Anything that reads a signup by key must refuse a signup whose `add_to_blog` is another site, with the same message as an unknown key.
 - User signups (`domain = ''`) and blog signups both reach this plugin's emails and activation page.
 - Nonces on every POST handler, `wp_unslash` + sanitise on every superglobal, `$wpdb->prepare` on every query.
 - New block: `src/blocks/<dir>/` with `block.json`, `render.php` and an ESM `index.js` whose `save` returns null, plus `register_block_type()` on `build/blocks/<dir>` in the main file. A new editor-only script needs its own entry in `webpack.config.js`.
@@ -43,5 +45,7 @@
 - 2026-10-19: A class `HM\UserActivation\Activation` and the namespace `HM\UserActivation\Activation\` coexist safely (`use` + `Activation\fn()` hits the function, `Activation::m()` the class); don't flag that as a collision.
 - 2026-10-19: Legacy option fallbacks are invisible in the settings UI; check help text such as "Defaults to ..." still holds when a 1.0.0 option is set.
 - 2026-10-19: Rate limits on unauthenticated forms: check that an attacker cannot use up the legitimate user's allowance (per-signup caps), and that an IP limit keyed on REMOTE_ADDR is not one shared bucket behind a proxy.
-- 2026-10-19: Expiry is only enforced on the plugin activation page; the wp-activate.php bypass is documented in the README, so do not report it as a new bug. Per-site lifetime vs network-wide signups is a known gap.
+- 2026-10-19: Per-site link lifetime vs network-wide signups is a known gap.
+- 2026-10-25: Since 2.0.0 the plugin is network-only. wp-activate.php keys go to the signup's own site's activation page, Registration Form signups (meta `hm_user_activation`) whose site has none get a 400, and other signups stay with core by design.
+- 2026-10-25: `hm_activation_allow_registration` falls back at runtime, while never saved, to "the site has a published registration page". That is a stated product decision (no loop over all sites), so don't flag the missing upgrade step for it. Only super admins set it, on Network Admin → Sites → Edit Site → Info.
 - 2026-10-19: Resend is unauthenticated (logged-out nonces are shared). Judge it per victim address over time: key rotation can invalidate a pending link, and refreshing `registered` keeps the signup alive forever.

@@ -7,16 +7,17 @@ Replaces WordPress Multisite's default `wp-signup.php` and `wp-activate.php` flo
 - WordPress Multisite
 - WordPress 6.5+
 - PHP 8.1+
+- Network activation, or loading from an mu-plugin. See [Why the plugin is network-wide](#why-the-plugin-is-network-wide).
 
 ## Features
 
 **Site-level registration page** — registration happens on your own site instead of the network's `wp-signup.php`. Signups are created with core's multisite functions (`wpmu_validate_user_signup()` and `wpmu_signup_user()`), so all the usual validation — reserved and illegal names, banned email domains, existing users, pending signups — still applies. Core's sign-up hooks are honoured too, so CAPTCHA, anti-spam and consent plugins that add fields to `wp-signup.php` work here. See [Extending the forms](#extending-the-forms). Plugins that only load on `wp-signup.php` need testing. Like `wp-signup.php`, the form tells visitors when a username or email address is already taken.
 
-Once the page is published, `wp_registration_url()` and the `wp-login.php?action=register` link point at it for logged-out visitors. When the network allows user accounts only, requests to `wp-signup.php` are redirected there too. This needs the plugin to be active on the network's main site, because `wp-signup.php` always runs on the main site. When the network also allows sites, `wp-signup.php` stays with core so people can still sign up for a site, and logged-in users keep the "Add New Site" link in My Sites.
+Once the page is published, `wp_registration_url()` and the `wp-login.php?action=register` link point at it for logged-out visitors. When the network allows user accounts only, requests to `wp-signup.php` are redirected there too. This needs registration to be on for the network's main site, because `wp-signup.php` always runs on the main site. When the network also allows sites, `wp-signup.php` stays with core so people can still sign up for a site, and logged-in users keep the "Add New Site" link in My Sites.
 
 New accounts become members of the site they registered on, with the site's default role (usually Subscriber). Core's `wp-signup.php` adds new users to no site at all. Use `hm_user_activation_signup_meta` to change the site or role.
 
-**Site-level activation page** — on plugin activation a draft page is created, pre-populated with the activation form block and conditional success/error blocks. Publish it and assign it in settings.
+**Site-level activation page** — when a super admin turns registration on for a site, a draft page is created, pre-populated with the activation form block and conditional success/error blocks. Publish it and assign it in settings.
 
 **Customisable activation email** — replaces the default network activation email with one that links to your site's own activation page. Subject, from name, from address, and body are all editable.
 
@@ -56,7 +57,7 @@ New accounts become members of the site they registered on, with the site's defa
 
 ## Link lifetime and resending
 
-**Link lifetime** — set **Activation link lifetime** in the settings to a number of hours. Links older than that show an "expired" error instead of activating. `0` (the default) means links never expire. Sites can also use the `hm_user_activation_link_lifetime` filter, which also gets the signup row. Expiry is only enforced by the plugin's activation page. On a site where the plugin isn't active, or when no activation page is set, core's `wp-activate.php` still accepts the key.
+**Link lifetime** — set **Activation link lifetime** in the settings to a number of hours. Links older than that show an "expired" error instead of activating. `0` (the default) means links never expire. Sites can also use the `hm_user_activation_link_lifetime` filter, which also gets the signup row. Expiry is enforced by the plugin's activation page. A key opened on `wp-activate.php` is sent to the activation page of the signup's own site, so expiry applies there too. See [Why the plugin is network-wide](#why-the-plugin-is-network-wide) for the signups that core still handles.
 
 **Resend block** — the `Resend Activation Form` block (`hm-user-activation/resend-form`) asks for an email address, then redirects back to the page with `?hm_activation_resent=1`. The reply is the same whether or not a registration exists, and a page refresh doesn't send another email. The default activation page includes the block in the errors group, so expired links lead straight to it, and adds an `Activation Link Resent` group that shows "If there's a pending registration for that address, we've sent a new activation link." only after that redirect. The group only shows on the redirect, and not when an activation result is also showing. The default registration page has the block and the group too, for someone whose earlier signup is still pending. Existing pages need the block and the group added by hand.
 
@@ -75,7 +76,7 @@ Resend rules:
 
 The resend count is removed from the signup before the plugin's activation page activates it. A signup activated some other way, such as core's `wp-activate.php` on a site without the plugin, may keep a `hm_activation_resends` entry in its user meta or the new site's options.
 
-Signups are network-wide, but the link lifetime and the email templates are per site. A resend from another site uses that site's settings.
+Signups are network-wide, but the link lifetime and the email templates are per site. A resend sends the email of the site the signup belongs to (its `add_to_blog` site), with a link to that site's activation page. If that site has no published activation page, nothing is sent. The reply on the page is the same.
 
 ## Complete your account mode
 
@@ -145,19 +146,69 @@ The plugin needs its compiled `build/` directory. Every release tag and release 
 - **Composer** — `composer require humanmade/hm-user-activation`. Composer installs from the release tags, which contain `build/`. To try the latest unreleased code, require `dev-release` instead. The `release` branch is `main` plus a fresh build after every merge.
 - **ZIP** — download `hm-user-activation-X.Y.Z.zip` from the GitHub release and upload it as a plugin.
 
+Network-activate the plugin under **Network Admin → Plugins**, or with `wp plugin activate hm-user-activation --network`. You can load it from an mu-plugin instead. See [Why the plugin is network-wide](#why-the-plugin-is-network-wide).
+
 `main` and `dev-main` hold only the sources. They need `npm install` and `npm run build` before the blocks work. See [Development](#development).
 
 ## Setup
 
 1. Enable user registration for the network under **Network Admin → Settings → Registration Settings** (either "User accounts may be registered" or "Both sites and user accounts can be registered").
-2. Activate the plugin on the target site.
-3. Go to **Settings → User Activation** and configure:
+2. Network-activate the plugin.
+3. As a super admin, go to **Network Admin → Sites**, edit the site, and tick **Allow registration on this site** on the **Info** tab. Save. The first time you do this, the plugin creates draft registration, activation and password reset pages on that site. With WP-CLI: `wp option update hm_activation_allow_registration 1 --url=<site URL>`.
+4. On that site, go to **Settings → User Activation** and configure:
    - **Registration page** — the generated draft page is selected for you. Registration links only point at it once it is published.
    - **Activation page** — the generated draft page is selected for you. Publish it before you save this screen, because this list only shows published pages.
    - **Password reset page** — the generated draft page is selected for you. Publish it before you save this screen, because this list only shows published pages. Until it is published, set-password links go to core's `wp-login.php`.
    - **Log in page** — used as `{login_url}` in the welcome email.
    - Email templates for the activation, welcome and password reset emails.
-4. Users who register will receive your custom activation email linking to the configured page.
+5. Users who register will receive your custom activation email linking to the configured page.
+
+Only super admins can turn registration on or off for a site. Site administrators can't change it. On a site where it is off, the **Settings → User Activation** screen is hidden.
+
+## Why the plugin is network-wide
+
+Activation links that core sends point at `wp-activate.php`. That file defines `WP_INSTALLING`. WordPress then loads only mu-plugins and network-activated plugins. A plugin that is active on a site only does not run there. So it can't stop someone who has an activation key from activating the account on `wp-activate.php`. That person skips the activation page, the Complete your account form and its required fields, and the welcome email with the set-password link.
+
+When the plugin is network-activated, it handles every key that reaches `wp-activate.php`. It reads the key from the query string, a posted form or core's `wp-activate-` cookie, in that order. Then it looks at the site the signup belongs to (`add_to_blog` in the signup meta):
+
+- If that site has registration on and a published activation page, the visitor is sent there with the key.
+- If the signup was made by the Registration Form block, but its site has no published activation page, the request stops with a 400 error. These signups are never activated by core.
+- Any other signup, for example a site signup or a user added by an administrator on a site that does not use the plugin, is left to core as before.
+
+An activation page also refuses a key whose signup belongs to another site. It shows the same message as an unknown key.
+
+**Sites that are not set up.** A network-activated plugin loads on every site. On a site where registration is off, the plugin does nothing: no blocks, no binding sources, no settings screen, no redirects and no emails. Core sends its own activation and welcome emails for signups on that site. The plugin only takes over the activation email for a signup whose site has registration on and a published activation page. It only stops core's welcome email when its own activation page activates the account, or the signup came from the Registration Form block.
+
+**Loading from an mu-plugin.** mu-plugins also load on `wp-activate.php`, so this works too. Put the plugin in a normal plugin folder and add a file such as `wp-content/mu-plugins/hm-user-activation.php`:
+
+```php
+<?php
+require WP_PLUGIN_DIR . '/hm-user-activation/hm-user-activation.php';
+```
+
+If the plugin is active on single sites only, it keeps working on those sites, and super admins see a notice asking them to network-activate it. No notice is shown when it is loaded from an mu-plugin.
+
+**The network "Sign ups" screen.** The stuttter/wp-user-signups plugin, which Altis ships, adds a **Sign ups** screen to network admin. That screen cannot activate a signup made by the Registration Form block. The **Activate** link is hidden for those signups, and a bulk activate skips them. They must be activated on their site's activation page, so the user sets a password and fills in the Complete your account form. Deleting and resending still work. Signups made before 2.0.0 have no `hm_user_activation` marker, so the screen can still activate them.
+
+## Upgrading to 2.0.0
+
+Version 2.0.0 is network-wide. Do these things:
+
+1. Network-activate the plugin: `wp plugin activate hm-user-activation --network`. Sites that had it active on their own keep it active, but they should rely on network activation. You can also load it from an mu-plugin.
+2. Check which sites have registration on. A new per-site option, `hm_activation_allow_registration`, decides. Super admins set it on **Network Admin → Sites → Edit Site → Info**. It is off by default.
+3. Turn it on for any site that needs it: `wp option update hm_activation_allow_registration 1 --url=<site URL>`.
+
+Existing sites keep working without a change when they have a published registration page. While the option has never been saved on a site, the plugin treats a site with a published registration page as on, and every other site as off. Once a super admin saves the Edit Site form, the saved value counts. Nothing loops over all sites, so nothing changes on sites you don't touch.
+
+A site that used the plugin without a published registration page, for example only for the activation page, is off after the upgrade. The plugin does nothing there until a super admin turns it on.
+
+Other changes:
+
+- Network activation creates no pages. A site gets its draft pages the first time registration is turned on for it.
+- `wp-activate.php` sends a key to the activation page of the signup's own site, or stops with a 400 error for a Registration Form signup whose site has no activation page.
+- Activation pages refuse keys for signups that belong to another site.
+- Signups from the Registration Form block carry `hm_user_activation => true` in their meta.
+- The activation email and resends come from the signup's own site.
 
 ## Upgrading to 1.4.0
 
@@ -171,7 +222,7 @@ Each signup is now also limited to 3 resends an hour. Return a different number 
 
 ## Upgrading from 1.0.0
 
-Version 1.1 renamed some settings and removed the password bindings. The plugin upgrades this data once on each site. The upgrade runs when the plugin is activated (on the main site only when it is network-activated), and the first time someone who can manage options opens the site's dashboard. It never runs on front-end or admin-ajax requests. Sites that went from 1.0.0 to 1.1.x get their 1.0.0 sender and log in URL back, because 1.1.x ignored them. The `hm_activation_db_version` option records that it has run. Version 1.0.0 stored no network options, so nothing changes at network level.
+Version 1.1 renamed some settings and removed the password bindings. The plugin upgrades this data once on each site that has registration on. The upgrade runs when the plugin is activated on a single site, and the first time someone who can manage options opens the site's dashboard. It never runs on front-end or admin-ajax requests. Sites that went from 1.0.0 to 1.1.x get their 1.0.0 sender and log in URL back, because 1.1.x ignored them. The `hm_activation_db_version` option records that it has run. Version 1.0.0 stored no network options, so nothing changes at network level.
 
 The upgrade does these things:
 
@@ -314,7 +365,7 @@ If a CDN or WAF fronts the site, such as Cloudflare, Fastly or CloudFront, put t
 ## Registration hooks
 
 - `hm_user_activation_registration_enabled` — filter whether the form accepts submissions (`bool $enabled`, `string $network_setting`).
-- `hm_user_activation_signup_meta` — filter the meta stored against the signup (`array $meta`, `string $user_name`, `string $user_email`). The meta starts with `add_to_blog` (this site) and `new_role` (the default role). Core's `add_signup_meta` filter is applied first.
+- `hm_user_activation_signup_meta` — filter the meta stored against the signup (`array $meta`, `string $user_name`, `string $user_email`). The meta starts with `add_to_blog` (this site), `new_role` (the default role) and `hm_user_activation` (`true`, which marks the signup as made by the Registration Form block). Core's `add_signup_meta` filter is applied first. If you change `add_to_blog` to another site, that site must have registration on and a published activation page. The activation email and link come from that site, and its activation page is the only place the signup can be activated.
 - `hm_user_activation_registered` — action fired after a signup is created (`string $user_name`, `string $user_email`, `array $meta`).
 - `hm_user_activation_registration_show_username` — filter whether the form asks for a username (`bool $show`). It starts as the block's **Ask for a username** setting. It runs when the form renders and when it is posted. Use it when the block is rendered outside the page content, for example from a template with `render_block()`, because the plugin reads the setting from the registration page's own content.
 - `hm_user_activation_generated_user_name` — filter the username made from the email address when the field is off (`string $user_name`, `string $user_email`). The result still goes through `wpmu_validate_user_signup()`, so it must follow core's rules: 4 to 60 lowercase letters and numbers, not all numbers.
@@ -448,7 +499,7 @@ The block and editor sources live in `src/`. `npm run build` compiles them to `b
 
 ## Testing
 
-The plugin has PHPUnit tests and end-to-end tests. The end-to-end tests use Playwright, `@wordpress/scripts` and `@wordpress/env`. The tests run on a subdirectory multisite network with the plugin network-activated. Network activation matters because WordPress only loads network-active plugins on `wp-activate.php`.
+The plugin has PHPUnit tests and end-to-end tests. The end-to-end tests use Playwright, `@wordpress/scripts` and `@wordpress/env`. The tests run on a subdirectory multisite network with the plugin network-activated. Network activation matters because WordPress only loads network-active plugins on `wp-activate.php`. The setup script also makes two more sites: `/hmua-second/` with registration on and published pages, and `/hmua-off/` with registration off.
 
 ### Running the tests
 
@@ -476,7 +527,7 @@ You need Node.js and Docker.
    npm run test:e2e
    ```
 
-If port 8888 is already in use, create a git-ignored `.wp-env.override.json` containing `{ "port": 8890 }`. The tests only use port 8889.
+If port 8888 is already in use, start the environment with `WP_ENV_PORT=8890 npm run wp-env start`. The tests only use port 8889.
 
 ### Running the PHPUnit tests
 
