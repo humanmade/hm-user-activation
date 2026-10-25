@@ -189,7 +189,7 @@ require WP_PLUGIN_DIR . '/hm-user-activation/hm-user-activation.php';
 
 If the plugin is active on single sites only, it keeps working on those sites, and super admins see a notice asking them to network-activate it. No notice is shown when it is loaded from an mu-plugin.
 
-**The network "Sign ups" screen.** The stuttter/wp-user-signups plugin, which Altis ships, adds a **Sign ups** screen to network admin. That screen cannot activate a signup made by the Registration Form block. The **Activate** link is hidden for those signups, and a bulk activate skips them. They must be activated on their site's activation page, so the user sets a password and fills in the Complete your account form. Deleting and resending still work. Signups made before 2.0.0 have no `hm_user_activation` marker, so the screen can still activate them.
+**The network "Sign ups" screen.** The stuttter/wp-user-signups plugin, which Altis ships, adds a **Sign ups** screen to network admin. That screen cannot activate a signup made by the Registration Form block. The **Activate** link is hidden for those signups, and a bulk activate skips them. They must be activated on their site's activation page, so the user sets a password and fills in the Complete your account form. Deleting and resending still work. Signups made before 2.0.0 have no `hm_user_activation` marker, so the screen can still activate them. WP-CLI's `wp user signup activate` calls core directly, so it can still activate any signup. Only someone with server access can run it.
 
 ## Upgrading to 2.0.0
 
@@ -200,6 +200,8 @@ Version 2.0.0 is network-wide. Do these things:
 3. Turn it on for any site that needs it: `wp option update hm_activation_allow_registration 1 --url=<site URL>`.
 
 Existing sites keep working without a change when they have a published registration page. While the option has never been saved on a site, the plugin treats a site with a published registration page as on, and every other site as off. Once a super admin saves the Edit Site form, the saved value counts. Nothing loops over all sites, so nothing changes on sites you don't touch.
+
+Until the option is saved, a site admin who publishes a registration page also turns the site on. To fix the value for a site, save its Edit Site form once, or set the option with WP-CLI.
 
 A site that used the plugin without a published registration page, for example only for the activation page, is off after the upgrade. The plugin does nothing there until a super admin turns it on.
 

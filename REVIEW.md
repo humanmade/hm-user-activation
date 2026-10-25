@@ -32,6 +32,8 @@
 - Cap 3. phpcs (HM standard) has many pre-existing errors; report only violations a change adds, and only if they differ from the existing file conventions.
 
 ## Learned
+- 2026-10-25: The wp-activate.php guard checks every key in GET, POST and the `wp-activate-{COOKIEHASH}` cookie, not just the first. Core treats a key such as `'0'` as empty and then activates the cookie key, which the client sets, so a guard that picks one key can be bypassed.
+- 2026-10-25: `hm_activation_allow_registration` is deliberately not passed to `register_setting()`, so site admins can't write it through options.php or the REST settings endpoint. Don't flag it under the "New options" rule.
 - 2026-10-21: `npm run test:php` runs PHPUnit in wp-env's `tests-cli` container against the e2e tests database under the `wptests_` prefix (the e2e site keeps `wp_`), with `tests/mu-plugins` loaded. Running it during a review is safe and takes seconds.
 - 2026-10-21: The `build-to-release-branch` action needs an existing `release` branch that is an ancestor of `main` but not equal to it (`release == main` makes `git apply` fail on an empty diff). Don't flag the one-time `git push origin main:release` before a merge as a bug.
 - 2026-10-21: `.github/scripts/stamp-version.sh` sets every built `block.json` version at release (core uses it as the block stylesheet `?ver=`), so the hand-set versions in `src/blocks/*/block.json` only matter on `main` and `dev-release`.
