@@ -198,7 +198,9 @@ function save_site_field(): void {
 	}
 	// phpcs:enable
 
-	if ( ! $site_id || ! current_user_can( 'manage_sites' ) || ! get_site( $site_id ) ) {
+	$site = $site_id ? get_site( $site_id ) : null;
+
+	if ( ! $site || ! current_user_can( 'manage_sites' ) || ! can_edit_network( $site->network_id ) ) {
 		return;
 	}
 
