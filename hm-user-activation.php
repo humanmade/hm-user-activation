@@ -41,6 +41,7 @@ require_once HM_USER_ACTIVATION_DIR . 'includes/admin-settings.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/page-setup.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/block-bindings.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/upgrade.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/signups-screen.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/class-activation.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/class-emails.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/class-block-bindings.php';
@@ -88,6 +89,7 @@ PasswordReset\bootstrap();
 Admin\bootstrap();
 BlockBindings\bootstrap();
 Upgrade\bootstrap();
+SignupsScreen\bootstrap();
 
 // Register blocks and editor assets.
 add_action( 'init', __NAMESPACE__ . '\\register_blocks' );
