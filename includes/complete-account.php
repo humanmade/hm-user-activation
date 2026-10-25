@@ -17,6 +17,7 @@ use HM\UserActivation\Emails;
 use HM\UserActivation\PasswordReset;
 use HM\UserActivation\Resend;
 use HM\UserActivation\Security;
+use HM\UserActivation\Sites;
 
 /**
  * Query arg added to the log in URL after an account is completed.
@@ -391,7 +392,7 @@ function nonce_failed_message(): string {
  * @param string $message Login message HTML.
  */
 function filter_login_message( $message ) {
-	if ( empty( $_GET[ QUERY_ARG ] ) ) {
+	if ( empty( $_GET[ QUERY_ARG ] ) || ! Sites\is_enabled() ) {
 		return $message;
 	}
 

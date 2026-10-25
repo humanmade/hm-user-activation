@@ -14,6 +14,7 @@ use HM\UserActivation\Emails;
 use HM\UserActivation\PasswordReset;
 use HM\UserActivation\Resend;
 use HM\UserActivation\Security;
+use HM\UserActivation\Sites;
 
 function bootstrap(): void {
 	// Redirect wp-activate.php requests to our activation page. This needs
@@ -79,7 +80,7 @@ function maybe_redirect_wp_activate(): void {
 function maybe_process_activation(): void {
 	$page_id = (int) get_option( 'hm_activation_page_id' );
 
-	if ( ! $page_id || ! is_page( $page_id ) ) {
+	if ( ! $page_id || ! is_page( $page_id ) || ! Sites\is_enabled() ) {
 		return;
 	}
 
@@ -188,7 +189,9 @@ function process( string $key, bool $auto_login ): void {
 	// logged in as it.
 	$existing_user = $signup && username_exists( $signup->user_login );
 
+	is_activating( true );
 	$activation = wpmu_activate_signup( $key );
+	is_activating( false );
 
 	if ( is_wp_error( $activation ) ) {
 		result( [
@@ -320,6 +323,19 @@ function get_link_lifetime( ?object $signup = null ): int {
 	 * @param object|null $signup The signup row being checked, or null if unknown.
 	 */
 	return max( 0, (int) apply_filters( 'hm_user_activation_link_lifetime', (int) get_option( 'hm_activation_link_lifetime', 0 ), $signup ) );
+}
+
+/**
+ * Whether the activation page is activating a signup right now.
+ *
+ * @param bool|null $value Pass a value to set it.
+ */
+function is_activating( ?bool $value = null ): bool {
+	static $activating = false;
+	if ( $value !== null ) {
+		$activating = $value;
+	}
+	return $activating;
 }
 
 /**

@@ -5,9 +5,11 @@
 
 namespace HM\UserActivation\Emails;
 
+use HM\UserActivation\Activation;
 use HM\UserActivation\CompleteAccount;
 use HM\UserActivation\PasswordReset;
 use HM\UserActivation\Security;
+use HM\UserActivation\Sites;
 
 function bootstrap(): void {
 	// Replace the default user-signup activation email.
@@ -45,12 +47,20 @@ const KEY_LINK_PLACEHOLDERS = [
  * user never needs the generated password: it stays unknown to everyone and is
  * replaced the moment they follow the reset link.
  *
+ * Only applies when the plugin handles the activation. Other signups, such
+ * as users added by an administrator on a site that does not use the plugin,
+ * get core's email.
+ *
  * @param int    $user_id  The new user's ID.
  * @param string $password The generated password. Deliberately unused.
  * @param array  $meta     Signup meta.
  * @return int|false The original value to let the email through, false to stop it.
  */
 function suppress_network_welcome_email( $user_id, $password, $meta ) {
+	if ( ! is_plugin_activation( (array) $meta ) ) {
+		return $user_id;
+	}
+
 	/**
 	 * Filter whether to suppress the network's welcome email.
 	 *
@@ -71,7 +81,8 @@ function suppress_network_welcome_email( $user_id, $password, $meta ) {
  * Activating a site signup sends wpmu_welcome_notification(), whose default
  * template has a PASSWORD line. That email is the only one that confirms the
  * new site and its address, so it is kept and only the password is replaced
- * with a pointer to the reset page.
+ * with a pointer to the reset page. Only applies when the plugin's activation
+ * page is activating the signup.
  *
  * @param string $welcome_email Email body, with placeholders already replaced.
  * @param int    $blog_id       New site ID.
@@ -81,7 +92,7 @@ function suppress_network_welcome_email( $user_id, $password, $meta ) {
  */
 function redact_site_welcome_password( $welcome_email, $blog_id, $user_id, $password ) {
 	// Core passes "N/A" when a super admin creates a site for an existing user.
-	if ( ! is_string( $welcome_email ) || ! is_string( $password ) || $password === '' || $password === 'N/A' ) {
+	if ( ! is_string( $welcome_email ) || ! is_string( $password ) || $password === '' || $password === 'N/A' || ! is_plugin_activation() ) {
 		return $welcome_email;
 	}
 
@@ -96,52 +107,91 @@ function redact_site_welcome_password( $welcome_email, $blog_id, $user_id, $pass
 }
 
 /**
- * Intercepts the user-signup notification and sends our custom email instead.
- * Returning false prevents the default WP email.
+ * Whether the plugin is handling this activation: its activation page is
+ * activating the signup, or the signup came from the Registration Form block.
+ *
+ * @param array $meta Signup meta, if known.
  */
-function intercept_user_notification( string $user_login, string $user_email, string $key, array $meta ): bool {
-	send_activation_email( $user_email, $key, $user_login );
+function is_plugin_activation( array $meta = [] ): bool {
+	return Activation\is_activating() || CompleteAccount\is_completing() || Sites\is_form_signup( $meta );
+}
+
+/**
+ * Intercepts the user-signup notification and sends our custom email instead.
+ * Returning false prevents the default WP email. When the signup's site does
+ * not use the plugin, the value is passed on so core sends its own email.
+ *
+ * @param string|false $user_login Username, or false when another filter stopped the email.
+ * @param string       $user_email Address to send to.
+ * @param string       $key        Activation key.
+ * @param array        $meta       Signup meta.
+ * @return string|false
+ */
+function intercept_user_notification( $user_login, string $user_email, string $key, $meta = [] ) {
+	if ( ! $user_login || ! send_activation_email( $user_email, $key, (string) $user_login, (array) $meta ) ) {
+		return $user_login;
+	}
+
 	return false;
 }
 
 /**
  * Intercepts the blog-signup notification and sends our custom email instead.
+ *
+ * @param string|false $domain     New site domain, or false when another filter stopped the email.
+ * @param string       $path       New site path.
+ * @param string       $title      New site title.
+ * @param string       $user_login Username.
+ * @param string       $user_email Address to send to.
+ * @param string       $key        Activation key.
+ * @param array        $meta       Signup meta.
+ * @return string|false
  */
-function intercept_blog_notification( string $domain, string $path, string $title, string $user_login, string $user_email, string $key, array $meta ): bool {
-	send_activation_email( $user_email, $key, $user_login );
+function intercept_blog_notification( $domain, string $path, string $title, string $user_login, string $user_email, string $key, $meta = [] ) {
+	if ( ! $domain || ! send_activation_email( $user_email, $key, $user_login, (array) $meta ) ) {
+		return $domain;
+	}
+
 	return false;
 }
 
 /**
  * Build and dispatch the activation email to the registering user.
  *
+ * The email comes from the site the user is added to, or the current site
+ * when the signup names none, and links to that site's activation page.
+ *
  * @param string $user_email Address to send to.
  * @param string $key        Activation key.
  * @param string $username   Username being registered.
+ * @param array  $meta       Signup meta.
+ * @return bool False when that site has no published activation page, so nothing was sent.
  */
-function send_activation_email( string $user_email, string $key, string $username ): void {
-	$page_id = (int) get_option( 'hm_activation_page_id' );
+function send_activation_email( string $user_email, string $key, string $username, array $meta = [] ): bool {
+	return (bool) Sites\on_site( Sites\signup_site_id( $meta ), static function () use ( $user_email, $key, $username ): bool {
+		$page_url = Sites\activation_page_url();
 
-	if ( $page_id ) {
-		$activation_url = add_query_arg( 'key', rawurlencode( $key ), get_permalink( $page_id ) ?: home_url( '/' ) );
-	} else {
-		$activation_url = network_site_url( 'wp-activate.php?key=' . rawurlencode( $key ) );
-	}
+		if ( ! $page_url ) {
+			return false;
+		}
 
-	$placeholders = build_placeholders( [
-		'{activation_link}' => $activation_url,
-		'{username}'        => $username,
-	] );
+		$placeholders = build_placeholders( [
+			'{activation_link}' => add_query_arg( 'key', rawurlencode( $key ), $page_url ),
+			'{username}'        => $username,
+		] );
 
-	$subject = get_option( 'hm_activation_email_subject' ) ?: default_activation_subject();
-	$body    = get_option( 'hm_activation_email_body' ) ?: default_activation_body();
+		$subject = get_option( 'hm_activation_email_subject' ) ?: default_activation_subject();
+		$body    = get_option( 'hm_activation_email_body' ) ?: default_activation_body();
 
-	wp_mail(
-		$user_email,
-		build_subject( $subject, $placeholders ),
-		replace( $body, $placeholders ),
-		build_headers()
-	);
+		wp_mail(
+			$user_email,
+			build_subject( $subject, $placeholders ),
+			replace( $body, $placeholders ),
+			build_headers()
+		);
+
+		return true;
+	} );
 }
 
 /**

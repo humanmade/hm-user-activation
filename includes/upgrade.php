@@ -11,6 +11,7 @@
 namespace HM\UserActivation\Upgrade;
 
 use HM\UserActivation\PageSetup;
+use HM\UserActivation\Sites;
 
 const DB_VERSION        = 1;
 const DB_VERSION_OPTION = 'hm_activation_db_version';
@@ -31,7 +32,7 @@ function bootstrap(): void {
  * Upgrade the current site when an administrator loads wp-admin.
  */
 function maybe_upgrade(): void {
-	if ( wp_doing_ajax() || ! current_user_can( 'manage_options' ) ) {
+	if ( wp_doing_ajax() || ! current_user_can( 'manage_options' ) || ! Sites\is_enabled() ) {
 		return;
 	}
 
