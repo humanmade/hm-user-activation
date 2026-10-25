@@ -57,7 +57,7 @@ const KEY_LINK_PLACEHOLDERS = [
  * @return int|false The original value to let the email through, false to stop it.
  */
 function suppress_network_welcome_email( $user_id, $password, $meta ) {
-	if ( ! is_plugin_activation( (array) $meta ) ) {
+	if ( ! is_plugin_activation( meta_array( $meta ) ) ) {
 		return $user_id;
 	}
 
@@ -128,7 +128,7 @@ function is_plugin_activation( array $meta = [] ): bool {
  * @return string|false
  */
 function intercept_user_notification( $user_login, string $user_email, string $key, $meta = [] ) {
-	if ( ! $user_login || ! send_activation_email( $user_email, $key, (string) $user_login, (array) $meta ) ) {
+	if ( ! $user_login || ! send_activation_email( $user_email, $key, (string) $user_login, meta_array( $meta ) ) ) {
 		return $user_login;
 	}
 
@@ -148,11 +148,23 @@ function intercept_user_notification( $user_login, string $user_email, string $k
  * @return string|false
  */
 function intercept_blog_notification( $domain, string $path, string $title, string $user_login, string $user_email, string $key, $meta = [] ) {
-	if ( ! $domain || ! send_activation_email( $user_email, $key, $user_login, (array) $meta ) ) {
+	if ( ! $domain || ! send_activation_email( $user_email, $key, $user_login, meta_array( $meta ) ) ) {
 		return $domain;
 	}
 
 	return false;
+}
+
+/**
+ * Signup meta as an array. Some callers, such as the network Sign ups
+ * screen's resend, pass it still serialized.
+ *
+ * @param mixed $meta Signup meta.
+ */
+function meta_array( $meta ): array {
+	$meta = maybe_unserialize( $meta );
+
+	return is_array( $meta ) ? $meta : [];
 }
 
 /**
