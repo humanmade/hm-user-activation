@@ -453,6 +453,38 @@ class Test_Network extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'wp-activate.php?key=', $body );
 	}
 
+	public function test_serialized_meta_still_names_the_signups_site(): void {
+		$body = $this->last_mail(
+			fn() => apply_filters( 'wpmu_signup_user_notification', 'hmuaserial', 'hmuaserial@example.com', 'abc123', serialize( $this->form_meta( $this->site_on ) ) )
+		);
+
+		$this->assertStringContainsString( Sites\activation_page_url( $this->site_on ) . '?key=abc123', $body );
+	}
+
+	public function test_registration_needs_a_published_activation_page(): void {
+		switch_to_blog( $this->site_on );
+		wp_update_post( [
+			'ID'          => (int) get_option( 'hm_activation_page_id' ),
+			'post_status' => 'draft',
+		] );
+
+		HM\UserActivation\Registration\process( 'hmuanopage', 'hmuanopage@example.com' );
+		$result = HM\UserActivation\Registration\result();
+		restore_current_blog();
+
+		$this->assertSame( 'registration_closed', $result['error_code'] ?? '' );
+		$this->assertNull( $GLOBALS['wpdb']->get_var( "SELECT signup_id FROM {$GLOBALS['wpdb']->signups} WHERE user_login = 'hmuanopage'" ) );
+	}
+
+	public function test_on_site_keeps_the_current_sites_rewrite_endpoints(): void {
+		global $wp_rewrite;
+
+		$wp_rewrite->add_endpoint( 'hmua-endpoint', EP_PAGES );
+		Sites\activation_page_url( $this->site_on );
+
+		$this->assertContains( 'hmua-endpoint', array_column( $wp_rewrite->endpoints, 1 ) );
+	}
+
 	public function test_network_welcome_email_is_only_suppressed_for_the_plugins_signups(): void {
 		$this->assertSame( 5, apply_filters( 'wpmu_welcome_user_notification', 5, 'password', [ 'add_to_blog' => $this->site_off ] ) );
 		$this->assertFalse( apply_filters( 'wpmu_welcome_user_notification', 5, 'password', $this->form_meta( $this->site_on ) ) );
