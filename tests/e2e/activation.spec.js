@@ -303,7 +303,11 @@ test.describe( 'Activation', () => {
 		page,
 		hmua,
 	} ) => {
-		const signup = await hmua.createSignup();
+		// A Registration Form signup for this site. Signups that name no
+		// site are left to core; see network.spec.js.
+		const signup = await hmua.createSignup( {
+			meta: { add_to_blog: 1, new_role: 'subscriber', hm_user_activation: true },
+		} );
 
 		await page.goto( `/wp-activate.php?key=${ signup.key }` );
 

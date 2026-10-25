@@ -451,6 +451,12 @@ add_action(
 			'permission_callback' => $open,
 		] );
 
+		register_rest_route( 'hmua-tests/v1', '/site', [
+			'methods'             => 'GET',
+			'callback'            => static fn(): array => [ 'id' => get_current_blog_id() ],
+			'permission_callback' => $open,
+		] );
+
 		register_rest_route( 'hmua-tests/v1', '/user', [
 			[
 				'methods'             => 'GET',

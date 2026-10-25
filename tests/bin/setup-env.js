@@ -36,10 +36,10 @@ function succeeds( args ) {
  * Turn the single site wp-env installs into a subdirectory network, activate
  * the plugin network-wide and publish the pages the specs rely on.
  *
- * The plugin does nothing on a single site, so it has to be activated after
- * the conversion for its activation hook to create the pages. It is
- * network-activated because WordPress only loads network-active plugins on
- * wp-activate.php, which the plugin needs in order to redirect that request.
+ * The plugin is network-activated because WordPress only loads network-active
+ * plugins on wp-activate.php, which the plugin needs in order to redirect
+ * that request. Network activation creates no pages, so setup.php turns
+ * registration on for the sites the specs use, which creates them.
  */
 function setup() {
 	if ( ! succeeds( [ 'core', 'is-installed', '--network' ] ) ) {
