@@ -143,6 +143,43 @@ class Test_Network extends WP_UnitTestCase {
 		$this->assertSame( $this->expected_url( $first->activation_key ), $this->run_guard() );
 	}
 
+	/**
+	 * Core treats an empty-looking key such as 0 as no key and falls back to
+	 * its cookie, so a cookie key must not get past the guard.
+	 *
+	 * @dataProvider provide_empty_looking_keys
+	 */
+	public function test_guard_checks_the_cookie_behind_a_key_core_ignores( string $source, string $value ): void {
+		$signup = $this->signup( $this->form_meta( $this->site_on ) );
+		$_COOKIE[ 'wp-activate-' . COOKIEHASH ] = $signup->activation_key;
+
+		if ( $source === 'get' ) {
+			$_GET['key'] = $value;
+		} else {
+			$_POST['key'] = $value;
+		}
+
+		$this->assertSame( $this->expected_url( $signup->activation_key ), $this->run_guard() );
+	}
+
+	public function provide_empty_looking_keys(): array {
+		return [
+			'GET 0'          => [ 'get', '0' ],
+			'POST 0'         => [ 'post', '0' ],
+			'GET spaced 0'   => [ 'get', ' 0 ' ],
+			'GET only a tag' => [ 'get', '<b></b>' ],
+		];
+	}
+
+	public function test_guard_checks_the_cookie_behind_an_unknown_key(): void {
+		$signup = $this->signup( $this->form_meta( $this->site_off ) );
+		$_GET['key'] = 'not-a-real-key';
+		$_COOKIE[ 'wp-activate-' . COOKIEHASH ] = $signup->activation_key;
+
+		$this->expectException( WPDieException::class );
+		$this->run_guard();
+	}
+
 	public function test_guard_redirects_an_admin_signup_for_a_site_that_uses_the_plugin(): void {
 		$signup      = $this->signup( [ 'add_to_blog' => $this->site_on, 'new_role' => 'subscriber' ] );
 		$_GET['key'] = $signup->activation_key;

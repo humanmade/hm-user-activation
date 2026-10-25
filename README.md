@@ -173,6 +173,7 @@ When the plugin is network-activated, it handles every key that reaches `wp-acti
 
 - If that site has registration on and a published activation page, the visitor is sent there with the key.
 - If the signup was made by the Registration Form block, but its site has no published activation page, the request stops with a 400 error. These signups are never activated by core.
+- The plugin checks every key the request carries, not only the first, because core has its own rules for which key it uses.
 - Any other signup, for example a site signup or a user added by an administrator on a site that does not use the plugin, is left to core as before.
 
 An activation page also refuses a key whose signup belongs to another site. It shows the same message as an unknown key.

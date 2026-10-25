@@ -49,15 +49,20 @@ function maybe_redirect_wp_activate(): void {
 		return;
 	}
 
-	$key = get_wp_activate_key();
-	if ( ! $key ) {
-		return;
-	}
+	// Core picks one of these keys by its own rules, so every one of them
+	// is checked. Core only gets the request when none needs the plugin.
+	$url = null;
+	foreach ( get_wp_activate_keys() as $key ) {
+		$url = get_wp_activate_redirect( $key );
 
-	$url = get_wp_activate_redirect( $key );
+		if ( is_wp_error( $url ) ) {
+			clear_wp_activate_cookie();
+			wp_die( esc_html( $url->get_error_message() ), esc_html__( 'Activation failed', 'hm-user-activation' ), [ 'response' => 400 ] );
+		}
 
-	if ( is_wp_error( $url ) ) {
-		wp_die( esc_html( $url->get_error_message() ), esc_html__( 'Activation failed', 'hm-user-activation' ), [ 'response' => 400 ] );
+		if ( $url ) {
+			break;
+		}
 	}
 
 	if ( ! $url ) {
@@ -77,10 +82,12 @@ function maybe_redirect_wp_activate(): void {
 }
 
 /**
- * The key wp-activate.php would use: from the query string, a posted form,
- * or the cookie core keeps it in, in that order.
+ * Every key wp-activate.php could use: from the query string, a posted
+ * form, and the cookie core keeps it in, in that order, without duplicates.
+ *
+ * @return string[]
  */
-function get_wp_activate_key(): string {
+function get_wp_activate_keys(): array {
 	$cookie = 'wp-activate-' . COOKIEHASH;
 
 	// phpcs:disable WordPress.Security.NonceVerification -- wp-activate.php takes the key without a nonce.
@@ -91,13 +98,7 @@ function get_wp_activate_key(): string {
 	];
 	// phpcs:enable
 
-	foreach ( $values as $value ) {
-		if ( $value !== '' ) {
-			return $value;
-		}
-	}
-
-	return '';
+	return array_values( array_unique( array_filter( $values ) ) );
 }
 
 /**
