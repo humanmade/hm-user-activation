@@ -248,6 +248,18 @@ function process( string $key, bool $auto_login ): void {
 	$processed = true;
 
 	$signup = get_signup_by_key( $key );
+
+	// A signup for another site is treated as unknown, so the page shows
+	// nothing about it and its user is never added through this site.
+	if ( $signup && Sites\is_other_site_signup( $signup ) ) {
+		result( [
+			'success'       => false,
+			'error_code'    => 'invalid_key',
+			'error_message' => invalid_key_message(),
+		] );
+		return;
+	}
+
 	if ( $signup && ! (int) $signup->active && is_expired( $signup ) ) {
 		result( [
 			'success'       => false,
@@ -436,6 +448,13 @@ function is_expired( object $signup ): bool {
 	$registered = strtotime( $signup->registered . ' UTC' );
 
 	return $registered && ( time() - $registered ) > $lifetime * HOUR_IN_SECONDS;
+}
+
+/**
+ * Core's message for an unknown activation key.
+ */
+function invalid_key_message(): string {
+	return __( 'Invalid activation key.' ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own string, so it matches an unknown key exactly.
 }
 
 /**

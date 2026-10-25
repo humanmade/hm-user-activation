@@ -290,6 +290,11 @@ function process_submission( int $page_id ): void {
 function check_key( string $key ) {
 	$signup = $key ? Activation\get_signup_by_key( $key ) : null;
 
+	// A signup for another site looks the same as an unknown key.
+	if ( $signup && Sites\is_other_site_signup( $signup ) ) {
+		$signup = null;
+	}
+
 	$user = $signup ? get_user_by( 'login', $signup->user_login ) : false;
 	if ( $user && ! is_signup_account( $user, $signup ) ) {
 		$signup = null;
