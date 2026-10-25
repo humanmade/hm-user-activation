@@ -32,8 +32,15 @@ function bootstrap(): void {
 }
 
 /**
- * Redirect requests to the native wp-activate.php to our activation page.
- * Only fires when the plugin is active on the main site (where wp-activate.php loads plugins).
+ * Send a key on wp-activate.php to the activation page of the signup's own site.
+ *
+ * wp-activate.php defines WP_INSTALLING, so WordPress only loads mu-plugins
+ * and network-activated plugins there. This runs only when the plugin is
+ * loaded in one of those ways.
+ *
+ * A signup whose site has a published activation page is redirected there.
+ * A Registration Form signup whose site has none is stopped. Any other
+ * signup is left to core.
  */
 function maybe_redirect_wp_activate(): void {
 	global $pagenow;
@@ -42,21 +49,23 @@ function maybe_redirect_wp_activate(): void {
 		return;
 	}
 
-	$page_id = get_option( 'hm_activation_page_id' );
-	if ( ! $page_id ) {
+	$key = get_wp_activate_key();
+	if ( ! $key ) {
 		return;
 	}
 
-	$key = sanitize_text_field( wp_unslash( $_GET['key'] ?? '' ) );
-	$url = get_permalink( (int) $page_id );
+	$url = get_wp_activate_redirect( $key );
+
+	if ( is_wp_error( $url ) ) {
+		wp_die( esc_html( $url->get_error_message() ), esc_html__( 'Activation failed', 'hm-user-activation' ), [ 'response' => 400 ] );
+	}
 
 	if ( ! $url ) {
 		return;
 	}
 
-	if ( $key ) {
-		$url = add_query_arg( 'key', rawurlencode( $key ), $url );
-	}
+	clear_wp_activate_cookie();
+	nocache_headers();
 
 	// A temporary redirect, not permanent: the URL carries a single-use key, and
 	// a 301 would be stored in browser and proxy caches. The target is a
@@ -65,6 +74,74 @@ function maybe_redirect_wp_activate(): void {
 	// network and send the user to wp-admin instead.
 	wp_redirect( $url, 302 );
 	exit;
+}
+
+/**
+ * The key wp-activate.php would use: from the query string, a posted form,
+ * or the cookie core keeps it in, in that order.
+ */
+function get_wp_activate_key(): string {
+	$cookie = 'wp-activate-' . COOKIEHASH;
+
+	// phpcs:disable WordPress.Security.NonceVerification -- wp-activate.php takes the key without a nonce.
+	$values = [
+		isset( $_GET['key'] ) && is_string( $_GET['key'] ) ? sanitize_text_field( wp_unslash( $_GET['key'] ) ) : '',
+		isset( $_POST['key'] ) && is_string( $_POST['key'] ) ? sanitize_text_field( wp_unslash( $_POST['key'] ) ) : '',
+		isset( $_COOKIE[ $cookie ] ) && is_string( $_COOKIE[ $cookie ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ $cookie ] ) ) : '',
+	];
+	// phpcs:enable
+
+	foreach ( $values as $value ) {
+		if ( $value !== '' ) {
+			return $value;
+		}
+	}
+
+	return '';
+}
+
+/**
+ * Where a key on wp-activate.php should go.
+ *
+ * @param string $key Activation key.
+ * @return string|\WP_Error|null The activation page URL with the key, an
+ *                               error when the signup cannot be activated
+ *                               anywhere, or null to leave it to core.
+ */
+function get_wp_activate_redirect( string $key ) {
+	$signup = get_signup_by_key( $key );
+	if ( ! $signup ) {
+		return null;
+	}
+
+	$meta    = Sites\signup_meta( $signup );
+	$site_id = Sites\signup_site_id( $meta );
+	$url     = $site_id ? Sites\activation_page_url( $site_id ) : '';
+
+	if ( $url ) {
+		return add_query_arg( 'key', rawurlencode( $key ), $url );
+	}
+
+	if ( Sites\is_form_signup( $meta ) ) {
+		return new \WP_Error( 'activation_unavailable', __( 'This activation link cannot be used. Contact the site you signed up on for help.', 'hm-user-activation' ) );
+	}
+
+	return null;
+}
+
+/**
+ * Drop core's wp-activate.php key cookie, which core scopes to that path.
+ */
+function clear_wp_activate_cookie(): void {
+	$name = 'wp-activate-' . COOKIEHASH;
+
+	if ( ! isset( $_COOKIE[ $name ] ) || headers_sent() ) {
+		return;
+	}
+
+	[ $path ] = explode( '?', wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Only used as the cookie path, as core does.
+
+	setcookie( $name, ' ', time() - YEAR_IN_SECONDS, $path, COOKIE_DOMAIN, is_ssl(), true );
 }
 
 /**

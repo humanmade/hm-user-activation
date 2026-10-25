@@ -175,7 +175,9 @@ function process( string $user_name, string $user_email ): void {
 	 * Filter the meta stored against the signup.
 	 *
 	 * Starts with add_to_blog and new_role so core's add_new_user_to_blog()
-	 * makes the user a member of this site on activation. Core's
+	 * makes the user a member of this site on activation, and the
+	 * hm_user_activation marker so the plugin can tell its own signups from
+	 * core and admin ones. Core's
 	 * add_signup_meta filter is applied first, then a plugin-specific one.
 	 *
 	 * @param array  $meta       Signup meta.
@@ -183,8 +185,9 @@ function process( string $user_name, string $user_email ): void {
 	 * @param string $user_email Sanitised email address.
 	 */
 	$meta = apply_filters( 'add_signup_meta', [
-		'add_to_blog' => get_current_blog_id(),
-		'new_role'    => get_option( 'default_role' ),
+		'add_to_blog'       => get_current_blog_id(),
+		'new_role'          => get_option( 'default_role' ),
+		Sites\SIGNUP_MARKER => true,
 	] );
 	$meta = apply_filters( 'hm_user_activation_signup_meta', $meta, $user_name, $user_email );
 
