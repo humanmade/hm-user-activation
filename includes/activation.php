@@ -14,6 +14,7 @@ use HM\UserActivation\Emails;
 use HM\UserActivation\PasswordReset;
 use HM\UserActivation\Resend;
 use HM\UserActivation\Security;
+use HM\UserActivation\Sites;
 
 function bootstrap(): void {
 	// Redirect wp-activate.php requests to our activation page. This needs
@@ -31,8 +32,15 @@ function bootstrap(): void {
 }
 
 /**
- * Redirect requests to the native wp-activate.php to our activation page.
- * Only fires when the plugin is active on the main site (where wp-activate.php loads plugins).
+ * Send a key on wp-activate.php to the activation page of the signup's own site.
+ *
+ * wp-activate.php defines WP_INSTALLING, so WordPress only loads mu-plugins
+ * and network-activated plugins there. This runs only when the plugin is
+ * loaded in one of those ways.
+ *
+ * A signup whose site has a published activation page is redirected there.
+ * A Registration Form signup whose site has none is stopped. Any other
+ * signup is left to core.
  */
 function maybe_redirect_wp_activate(): void {
 	global $pagenow;
@@ -41,21 +49,36 @@ function maybe_redirect_wp_activate(): void {
 		return;
 	}
 
-	$page_id = get_option( 'hm_activation_page_id' );
-	if ( ! $page_id ) {
-		return;
+	// Core reads its cookie without checking the type, and wpdb::prepare()
+	// turns a one-item array into its value, so a key sent as an array
+	// cookie would reach core unchecked. A real key is always a string.
+	$cookie = 'wp-activate-' . COOKIEHASH;
+	if ( isset( $_COOKIE[ $cookie ] ) && ! is_string( $_COOKIE[ $cookie ] ) ) {
+		unset( $_COOKIE[ $cookie ] );
 	}
 
-	$key = sanitize_text_field( wp_unslash( $_GET['key'] ?? '' ) );
-	$url = get_permalink( (int) $page_id );
+	// Core picks one of these keys by its own rules, so every one of them
+	// is checked. Core only gets the request when none needs the plugin.
+	$url = null;
+	foreach ( get_wp_activate_keys() as $key ) {
+		$url = get_wp_activate_redirect( $key );
+
+		if ( is_wp_error( $url ) ) {
+			clear_wp_activate_cookie();
+			wp_die( esc_html( $url->get_error_message() ), esc_html__( 'Activation failed', 'hm-user-activation' ), [ 'response' => 400 ] );
+		}
+
+		if ( $url ) {
+			break;
+		}
+	}
 
 	if ( ! $url ) {
 		return;
 	}
 
-	if ( $key ) {
-		$url = add_query_arg( 'key', rawurlencode( $key ), $url );
-	}
+	clear_wp_activate_cookie();
+	nocache_headers();
 
 	// A temporary redirect, not permanent: the URL carries a single-use key, and
 	// a 301 would be stored in browser and proxy caches. The target is a
@@ -64,6 +87,70 @@ function maybe_redirect_wp_activate(): void {
 	// network and send the user to wp-admin instead.
 	wp_redirect( $url, 302 );
 	exit;
+}
+
+/**
+ * Every key wp-activate.php could use: from the query string, a posted
+ * form, and the cookie core keeps it in, in that order, without duplicates.
+ *
+ * @return string[]
+ */
+function get_wp_activate_keys(): array {
+	$cookie = 'wp-activate-' . COOKIEHASH;
+
+	// phpcs:disable WordPress.Security.NonceVerification -- wp-activate.php takes the key without a nonce.
+	$values = [
+		isset( $_GET['key'] ) && is_string( $_GET['key'] ) ? sanitize_text_field( wp_unslash( $_GET['key'] ) ) : '',
+		isset( $_POST['key'] ) && is_string( $_POST['key'] ) ? sanitize_text_field( wp_unslash( $_POST['key'] ) ) : '',
+		isset( $_COOKIE[ $cookie ] ) && is_string( $_COOKIE[ $cookie ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ $cookie ] ) ) : '',
+	];
+	// phpcs:enable
+
+	return array_values( array_unique( array_filter( $values ) ) );
+}
+
+/**
+ * Where a key on wp-activate.php should go.
+ *
+ * @param string $key Activation key.
+ * @return string|\WP_Error|null The activation page URL with the key, an
+ *                               error when the signup cannot be activated
+ *                               anywhere, or null to leave it to core.
+ */
+function get_wp_activate_redirect( string $key ) {
+	$signup = get_signup_by_key( $key );
+	if ( ! $signup ) {
+		return null;
+	}
+
+	$meta    = Sites\signup_meta( $signup );
+	$site_id = Sites\signup_site_id( $meta );
+	$url     = $site_id ? Sites\activation_page_url( $site_id ) : '';
+
+	if ( $url ) {
+		return add_query_arg( 'key', rawurlencode( $key ), $url );
+	}
+
+	if ( Sites\is_form_signup( $meta ) ) {
+		return new \WP_Error( 'activation_unavailable', __( 'This activation link cannot be used. Contact the site you signed up on for help.', 'hm-user-activation' ) );
+	}
+
+	return null;
+}
+
+/**
+ * Drop core's wp-activate.php key cookie, which core scopes to that path.
+ */
+function clear_wp_activate_cookie(): void {
+	$name = 'wp-activate-' . COOKIEHASH;
+
+	if ( ! isset( $_COOKIE[ $name ] ) || headers_sent() ) {
+		return;
+	}
+
+	[ $path ] = explode( '?', wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Only used as the cookie path, as core does.
+
+	setcookie( $name, ' ', time() - YEAR_IN_SECONDS, $path, COOKIE_DOMAIN, is_ssl(), true );
 }
 
 /**
@@ -79,7 +166,7 @@ function maybe_redirect_wp_activate(): void {
 function maybe_process_activation(): void {
 	$page_id = (int) get_option( 'hm_activation_page_id' );
 
-	if ( ! $page_id || ! is_page( $page_id ) ) {
+	if ( ! $page_id || ! is_page( $page_id ) || ! Sites\is_enabled() ) {
 		return;
 	}
 
@@ -170,6 +257,18 @@ function process( string $key, bool $auto_login ): void {
 	$processed = true;
 
 	$signup = get_signup_by_key( $key );
+
+	// A signup for another site is treated as unknown, so the page shows
+	// nothing about it and its user is never added through this site.
+	if ( $signup && Sites\is_other_site_signup( $signup ) ) {
+		result( [
+			'success'       => false,
+			'error_code'    => 'invalid_key',
+			'error_message' => invalid_key_message(),
+		] );
+		return;
+	}
+
 	if ( $signup && ! (int) $signup->active && is_expired( $signup ) ) {
 		result( [
 			'success'       => false,
@@ -188,7 +287,9 @@ function process( string $key, bool $auto_login ): void {
 	// logged in as it.
 	$existing_user = $signup && username_exists( $signup->user_login );
 
+	is_activating( true );
 	$activation = wpmu_activate_signup( $key );
+	is_activating( false );
 
 	if ( is_wp_error( $activation ) ) {
 		result( [
@@ -323,6 +424,19 @@ function get_link_lifetime( ?object $signup = null ): int {
 }
 
 /**
+ * Whether the activation page is activating a signup right now.
+ *
+ * @param bool|null $value Pass a value to set it.
+ */
+function is_activating( ?bool $value = null ): bool {
+	static $activating = false;
+	if ( $value !== null ) {
+		$activating = $value;
+	}
+	return $activating;
+}
+
+/**
  * Look up a signup row by its activation key.
  */
 function get_signup_by_key( string $key ): ?object {
@@ -343,6 +457,13 @@ function is_expired( object $signup ): bool {
 	$registered = strtotime( $signup->registered . ' UTC' );
 
 	return $registered && ( time() - $registered ) > $lifetime * HOUR_IN_SECONDS;
+}
+
+/**
+ * Core's message for an unknown activation key.
+ */
+function invalid_key_message(): string {
+	return __( 'Invalid activation key.' ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own string, so it matches an unknown key exactly.
 }
 
 /**

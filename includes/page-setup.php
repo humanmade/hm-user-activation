@@ -1,9 +1,18 @@
 <?php
 /**
- * Creates draft pages for activation and password reset on plugin activation.
+ * Creates the draft registration, activation and password reset pages when a site is turned on.
  */
 
 namespace HM\UserActivation\PageSetup;
+
+/**
+ * Create the draft registration, activation and password reset pages a site is missing.
+ */
+function create_pages(): void {
+	create_registration_page();
+	create_activation_page();
+	create_password_reset_page();
+}
 
 /**
  * Create the activation page as a draft (only once).

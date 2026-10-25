@@ -9,6 +9,8 @@
 ## Always check
 - `filter_block_visibility()` and every group variation: which request (GET `?key`, POST key, POST resend, redirect flag) shows which group, on the activation page and off it.
 - Signups are network-wide (`$wpdb->signups`); options and pages are per site. Check which blog's settings an email or link uses.
+- The plugin is network-activated and loads on every site. Every hook must do nothing on a site where `Sites\is_enabled()` is false, except the network admin Edit Site field, the Sign ups screen filters and the wp-activate.php guard, which act on the signup's own site.
+- Anything that reads a signup by key must refuse a signup whose `add_to_blog` is another site, with the same message as an unknown key.
 - User signups (`domain = ''`) and blog signups both reach this plugin's emails and activation page.
 - Nonces on every POST handler, `wp_unslash` + sanitise on every superglobal, `$wpdb->prepare` on every query.
 - New block: `src/blocks/<dir>/` with `block.json`, `render.php` and an ESM `index.js` whose `save` returns null, plus `register_block_type()` on `build/blocks/<dir>` in the main file. A new editor-only script needs its own entry in `webpack.config.js`.
@@ -30,6 +32,9 @@
 - Cap 3. phpcs (HM standard) has many pre-existing errors; report only violations a change adds, and only if they differ from the existing file conventions.
 
 ## Learned
+- 2026-10-25: Core's wp-activate.php passes the `wp-activate-{COOKIEHASH}` cookie to `wpmu_activate_signup()` without sanitising it, and `wpdb::prepare()` flattens a one-element array argument. So a client cookie `wp-activate-{COOKIEHASH}[]=<key>` activates. Any guard that reads that cookie must handle non-string values, not skip them.
+- 2026-10-25: The wp-activate.php guard checks every key in GET, POST and the `wp-activate-{COOKIEHASH}` cookie, not just the first. Core treats a key such as `'0'` as empty and then activates the cookie key, which the client sets, so a guard that picks one key can be bypassed.
+- 2026-10-25: `hm_activation_allow_registration` is deliberately not passed to `register_setting()`, so site admins can't write it through options.php or the REST settings endpoint. Don't flag it under the "New options" rule.
 - 2026-10-21: `npm run test:php` runs PHPUnit in wp-env's `tests-cli` container against the e2e tests database under the `wptests_` prefix (the e2e site keeps `wp_`), with `tests/mu-plugins` loaded. Running it during a review is safe and takes seconds.
 - 2026-10-21: The `build-to-release-branch` action needs an existing `release` branch that is an ancestor of `main` but not equal to it (`release == main` makes `git apply` fail on an empty diff). Don't flag the one-time `git push origin main:release` before a merge as a bug.
 - 2026-10-21: `.github/scripts/stamp-version.sh` sets every built `block.json` version at release (core uses it as the block stylesheet `?ver=`), so the hand-set versions in `src/blocks/*/block.json` only matter on `main` and `dev-release`.
@@ -43,5 +48,7 @@
 - 2026-10-19: A class `HM\UserActivation\Activation` and the namespace `HM\UserActivation\Activation\` coexist safely (`use` + `Activation\fn()` hits the function, `Activation::m()` the class); don't flag that as a collision.
 - 2026-10-19: Legacy option fallbacks are invisible in the settings UI; check help text such as "Defaults to ..." still holds when a 1.0.0 option is set.
 - 2026-10-19: Rate limits on unauthenticated forms: check that an attacker cannot use up the legitimate user's allowance (per-signup caps), and that an IP limit keyed on REMOTE_ADDR is not one shared bucket behind a proxy.
-- 2026-10-19: Expiry is only enforced on the plugin activation page; the wp-activate.php bypass is documented in the README, so do not report it as a new bug. Per-site lifetime vs network-wide signups is a known gap.
+- 2026-10-19: Per-site link lifetime vs network-wide signups is a known gap.
+- 2026-10-25: Since 2.0.0 the plugin is network-only. wp-activate.php keys go to the signup's own site's activation page, Registration Form signups (meta `hm_user_activation`) whose site has none get a 400, and other signups stay with core by design.
+- 2026-10-25: `hm_activation_allow_registration` falls back at runtime, while never saved, to "the site has a published registration page". That is a stated product decision (no loop over all sites), so don't flag the missing upgrade step for it. Only super admins set it, on Network Admin → Sites → Edit Site → Info.
 - 2026-10-19: Resend is unauthenticated (logged-out nonces are shared). Judge it per victim address over time: key rotation can invalidate a pending link, and refreshing `registered` keeps the signup alive forever.

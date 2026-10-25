@@ -9,6 +9,7 @@ namespace HM\UserActivation\Admin;
 
 use HM\UserActivation\Emails;
 use HM\UserActivation\Registration;
+use HM\UserActivation\Sites;
 
 const PAGE_SLUG    = 'hm-user-activation';
 const OPTION_GROUP = 'hm_user_activation';
@@ -19,6 +20,10 @@ function bootstrap(): void {
 }
 
 function add_settings_page(): void {
+	if ( ! Sites\is_enabled() ) {
+		return;
+	}
+
 	add_options_page(
 		__( 'User Activation Settings', 'hm-user-activation' ),
 		__( 'User Activation', 'hm-user-activation' ),
@@ -33,6 +38,12 @@ function add_settings_page(): void {
 // -------------------------------------------------------------------------
 
 function register_settings(): void {
+	// Without its settings, options.php refuses this screen's form on a site
+	// that is turned off.
+	if ( ! Sites\is_enabled() ) {
+		return;
+	}
+
 	// --- General ---
 	register_setting( OPTION_GROUP, 'hm_activation_page_id', [
 		'type'              => 'integer',
