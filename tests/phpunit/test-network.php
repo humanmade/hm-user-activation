@@ -171,6 +171,14 @@ class Test_Network extends WP_UnitTestCase {
 		];
 	}
 
+	public function test_guard_drops_a_key_cookie_sent_as_an_array(): void {
+		$signup = $this->signup( $this->form_meta( $this->site_off ) );
+		$_COOKIE[ 'wp-activate-' . COOKIEHASH ] = [ $signup->activation_key ];
+
+		$this->assertSame( '', $this->run_guard() );
+		$this->assertArrayNotHasKey( 'wp-activate-' . COOKIEHASH, $_COOKIE );
+	}
+
 	public function test_guard_checks_the_cookie_behind_an_unknown_key(): void {
 		$signup = $this->signup( $this->form_meta( $this->site_off ) );
 		$_GET['key'] = 'not-a-real-key';

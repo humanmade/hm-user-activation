@@ -49,6 +49,14 @@ function maybe_redirect_wp_activate(): void {
 		return;
 	}
 
+	// Core reads its cookie without checking the type, and wpdb::prepare()
+	// turns a one-item array into its value, so a key sent as an array
+	// cookie would reach core unchecked. A real key is always a string.
+	$cookie = 'wp-activate-' . COOKIEHASH;
+	if ( isset( $_COOKIE[ $cookie ] ) && ! is_string( $_COOKIE[ $cookie ] ) ) {
+		unset( $_COOKIE[ $cookie ] );
+	}
+
 	// Core picks one of these keys by its own rules, so every one of them
 	// is checked. Core only gets the request when none needs the plugin.
 	$url = null;

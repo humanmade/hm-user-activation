@@ -32,6 +32,7 @@
 - Cap 3. phpcs (HM standard) has many pre-existing errors; report only violations a change adds, and only if they differ from the existing file conventions.
 
 ## Learned
+- 2026-10-25: Core's wp-activate.php passes the `wp-activate-{COOKIEHASH}` cookie to `wpmu_activate_signup()` without sanitising it, and `wpdb::prepare()` flattens a one-element array argument. So a client cookie `wp-activate-{COOKIEHASH}[]=<key>` activates. Any guard that reads that cookie must handle non-string values, not skip them.
 - 2026-10-25: The wp-activate.php guard checks every key in GET, POST and the `wp-activate-{COOKIEHASH}` cookie, not just the first. Core treats a key such as `'0'` as empty and then activates the cookie key, which the client sets, so a guard that picks one key can be bypassed.
 - 2026-10-25: `hm_activation_allow_registration` is deliberately not passed to `register_setting()`, so site admins can't write it through options.php or the REST settings endpoint. Don't flag it under the "New options" rule.
 - 2026-10-21: `npm run test:php` runs PHPUnit in wp-env's `tests-cli` container against the e2e tests database under the `wptests_` prefix (the e2e site keeps `wp_`), with `tests/mu-plugins` loaded. Running it during a review is safe and takes seconds.
