@@ -134,7 +134,8 @@ function process( string $user_name, string $user_email ): void {
 		return;
 	}
 
-	if ( ! is_registration_enabled() || ! Sites\is_enabled() ) {
+	// Without a published activation page a signup could never be activated.
+	if ( ! is_registration_enabled() || ! Sites\is_enabled() || ! Sites\activation_page_url() ) {
 		result( [
 			'success'       => false,
 			'error_code'    => 'registration_closed',

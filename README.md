@@ -157,7 +157,7 @@ Network-activate the plugin under **Network Admin → Plugins**, or with `wp plu
 3. As a super admin, go to **Network Admin → Sites**, edit the site, and tick **Allow registration on this site** on the **Info** tab. Save. The first time you do this, the plugin creates draft registration, activation and password reset pages on that site. With WP-CLI: `wp option update hm_activation_allow_registration 1 --url=<site URL>`.
 4. On that site, go to **Settings → User Activation** and configure:
    - **Registration page** — the generated draft page is selected for you. Registration links only point at it once it is published.
-   - **Activation page** — the generated draft page is selected for you. Publish it before you save this screen, because this list only shows published pages.
+   - **Activation page** — the generated draft page is selected for you. Publish it before you save this screen, because this list only shows published pages. The registration form refuses signups until it is published, because nobody could activate them.
    - **Password reset page** — the generated draft page is selected for you. Publish it before you save this screen, because this list only shows published pages. Until it is published, set-password links go to core's `wp-login.php`.
    - **Log in page** — used as `{login_url}` in the welcome email.
    - Email templates for the activation, welcome and password reset emails.
