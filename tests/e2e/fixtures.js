@@ -59,14 +59,18 @@ function extractLinks( message ) {
 /**
  * Helpers around the test-only mu-plugin in tests/mu-plugins.
  *
- * @param {import('@playwright/test').APIRequestContext} request   Request context.
- * @param {string}                                       [baseURL] Site URL, for test cookies.
+ * @param {import('@playwright/test').APIRequestContext} request    Request context.
+ * @param {string}                                       [baseURL]  Site URL, for test cookies.
+ * @param {string}                                       [sitePath] Path of another site on the network, such as `/hmua-second`.
  * @return {Object} Mail and account helpers.
  */
 function createHelpers(
 	request,
-	baseURL = process.env.WP_BASE_URL || 'http://localhost:8889'
+	baseURL = process.env.WP_BASE_URL || 'http://localhost:8889',
+	sitePath = ''
 ) {
+	const siteRoute = ( path, params ) => sitePath + routeUrl( path, params );
+
 	async function getJson( response ) {
 		expect(
 			response.ok(),
@@ -85,7 +89,7 @@ function createHelpers(
 		 */
 		async all( to ) {
 			return getJson(
-				await request.get( routeUrl( 'mail', to ? { to } : {} ) )
+				await request.get( siteRoute( 'mail', to ? { to } : {} ) )
 			);
 		},
 
@@ -96,7 +100,7 @@ function createHelpers(
 		 */
 		async reset( to ) {
 			await getJson(
-				await request.delete( routeUrl( 'mail', to ? { to } : {} ) )
+				await request.delete( siteRoute( 'mail', to ? { to } : {} ) )
 			);
 		},
 
@@ -159,7 +163,7 @@ function createHelpers(
 		async createSignup( { meta, ageHours } = {} ) {
 			const identity = this.newIdentity();
 			const data = await getJson(
-				await request.post( routeUrl( 'signup' ), {
+				await request.post( siteRoute( 'signup' ), {
 					form: {
 						user_login: identity.login,
 						user_email: identity.email,
@@ -183,7 +187,7 @@ function createHelpers(
 			const identity = this.newIdentity();
 			const path = `/hmua-blog-${ uniqueId() }/`;
 			const data = await getJson(
-				await request.post( routeUrl( 'blog-signup' ), {
+				await request.post( siteRoute( 'blog-signup' ), {
 					form: {
 						user_login: login || identity.login,
 						user_email: identity.email,
@@ -210,7 +214,7 @@ function createHelpers(
 		async getSignupState( login, path = '' ) {
 			return getJson(
 				await request.get(
-					routeUrl( 'signup-state', { user_login: login, path } )
+					siteRoute( 'signup-state', { user_login: login, path } )
 				)
 			);
 		},
@@ -224,7 +228,7 @@ function createHelpers(
 		async getSignupStateByEmail( email ) {
 			return getJson(
 				await request.get(
-					routeUrl( 'signup-state', { user_email: email } )
+					siteRoute( 'signup-state', { user_email: email } )
 				)
 			);
 		},
@@ -238,7 +242,7 @@ function createHelpers(
 		async cleanup( login, path = '' ) {
 			await getJson(
 				await request.delete(
-					routeUrl( 'signup-state', { user_login: login, path } )
+					siteRoute( 'signup-state', { user_login: login, path } )
 				)
 			);
 		},
@@ -259,7 +263,7 @@ function createHelpers(
 			}
 
 			await getJson(
-				await request.post( routeUrl( 'user' ), {
+				await request.post( siteRoute( 'user' ), {
 					form: {
 						user_login: identity.login,
 						user_email: identity.email,
@@ -280,7 +284,7 @@ function createHelpers(
 		 */
 		async setOption( name, value ) {
 			await getJson(
-				await request.post( routeUrl( 'option' ), {
+				await request.post( siteRoute( 'option' ), {
 					form: { name, value: String( value ) },
 				} )
 			);
@@ -294,7 +298,7 @@ function createHelpers(
 		 */
 		async getOption( name ) {
 			return getJson(
-				await request.get( routeUrl( 'option', { name } ) )
+				await request.get( siteRoute( 'option', { name } ) )
 			);
 		},
 
@@ -305,7 +309,7 @@ function createHelpers(
 		 */
 		async deleteOption( name ) {
 			await getJson(
-				await request.delete( routeUrl( 'option', { name } ) )
+				await request.delete( siteRoute( 'option', { name } ) )
 			);
 		},
 
@@ -321,7 +325,7 @@ function createHelpers(
 		 */
 		async createPage( { title, slug, content, status = 'publish' } ) {
 			const data = await getJson(
-				await request.post( routeUrl( 'page' ), {
+				await request.post( siteRoute( 'page' ), {
 					form: { title, slug, content, status },
 				} )
 			);
@@ -337,7 +341,7 @@ function createHelpers(
 		 */
 		async getPage( id ) {
 			return getJson(
-				await request.get( routeUrl( 'page', { id: String( id ) } ) )
+				await request.get( siteRoute( 'page', { id: String( id ) } ) )
 			);
 		},
 
@@ -348,7 +352,9 @@ function createHelpers(
 		 */
 		async deletePage( id ) {
 			await getJson(
-				await request.delete( routeUrl( 'page', { id: String( id ) } ) )
+				await request.delete(
+					siteRoute( 'page', { id: String( id ) } )
+				)
 			);
 		},
 
@@ -358,7 +364,7 @@ function createHelpers(
 		 * @return {Promise<Object>} Report from the helper route.
 		 */
 		async getShims() {
-			return getJson( await request.get( routeUrl( 'shims' ) ) );
+			return getJson( await request.get( siteRoute( 'shims' ) ) );
 		},
 
 		/**
@@ -368,7 +374,7 @@ function createHelpers(
 		 */
 		async setRegistration( value ) {
 			await getJson(
-				await request.post( routeUrl( 'registration' ), {
+				await request.post( siteRoute( 'registration' ), {
 					form: { value },
 				} )
 			);
@@ -382,7 +388,7 @@ function createHelpers(
 		 */
 		async setPageStatus( option, status ) {
 			await getJson(
-				await request.post( routeUrl( 'page-status' ), {
+				await request.post( siteRoute( 'page-status' ), {
 					form: { option, status },
 				} )
 			);
@@ -396,7 +402,7 @@ function createHelpers(
 		 */
 		async getUser( login ) {
 			return getJson(
-				await request.get( routeUrl( 'user', { login } ) )
+				await request.get( siteRoute( 'user', { login } ) )
 			);
 		},
 
@@ -518,8 +524,8 @@ function createHelpers(
 		 * Have the registration page's content end with the Registration Form
 		 * block rendered from PHP, for one browser context.
 		 *
-		 * @param {import('@playwright/test').BrowserContext} context        Browser context.
-		 * @param {Object}                                    [options]      Options.
+		 * @param {import('@playwright/test').BrowserContext} context          Browser context.
+		 * @param {Object}                                    [options]        Options.
 		 * @param {boolean}                                   [options.hidden] Render it with "Ask for a username" off.
 		 */
 		async useRenderedRegistrationForm( context, { hidden = false } = {} ) {

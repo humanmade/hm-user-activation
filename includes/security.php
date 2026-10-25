@@ -23,6 +23,8 @@
 
 namespace HM\UserActivation\Security;
 
+use HM\UserActivation\Sites;
+
 /**
  * Cookie name prefixes. The COOKIEHASH suffix is added at runtime so installs
  * sharing a domain do not collide, exactly as core does for its own cookies.
@@ -51,6 +53,10 @@ function bootstrap(): void {
  * @return int[]
  */
 function sensitive_page_ids(): array {
+	if ( ! Sites\is_enabled() ) {
+		return [];
+	}
+
 	$ids = [
 		(int) get_option( 'hm_activation_registration_page_id' ),
 		(int) get_option( 'hm_activation_page_id' ),

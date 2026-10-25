@@ -15,6 +15,13 @@ class Test_Resend_Limits extends WP_UnitTestCase {
 	public function set_up(): void {
 		parent::set_up();
 
+		// The email links to the activation page, so the site needs one.
+		update_option( 'hm_activation_allow_registration', 1 );
+		wp_update_post( [
+			'ID'          => (int) get_option( 'hm_activation_page_id' ),
+			'post_status' => 'publish',
+		] );
+
 		wpmu_signup_user( 'resendme', self::EMAIL );
 	}
 

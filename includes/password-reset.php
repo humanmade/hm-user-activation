@@ -13,6 +13,7 @@ namespace HM\UserActivation\PasswordReset;
 
 use HM\UserActivation\Emails;
 use HM\UserActivation\Security;
+use HM\UserActivation\Sites;
 
 function bootstrap(): void {
 	add_action( 'template_redirect', __NAMESPACE__ . '\\maybe_process' );
@@ -36,7 +37,7 @@ function bootstrap(): void {
 function maybe_process(): void {
 	$page_id = (int) get_option( 'hm_activation_password_reset_page_id' );
 
-	if ( ! $page_id || ! is_page( $page_id ) ) {
+	if ( ! $page_id || ! is_page( $page_id ) || ! Sites\is_enabled() ) {
 		return;
 	}
 
@@ -412,7 +413,7 @@ function filter_block_visibility( string $block_content, array $parsed_block ): 
  */
 function page_url(): string {
 	$page_id = (int) get_option( 'hm_activation_password_reset_page_id' );
-	if ( ! $page_id || get_post_status( $page_id ) !== 'publish' ) {
+	if ( ! $page_id || get_post_status( $page_id ) !== 'publish' || ! Sites\is_enabled() ) {
 		return '';
 	}
 

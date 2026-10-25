@@ -9,6 +9,7 @@
  * Requires PHP: 8.1
  * Text Domain: hm-user-activation
  * Domain Path: /languages
+ * Network: true
  */
 
 namespace HM\UserActivation;
@@ -18,6 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 define( 'HM_USER_ACTIVATION_VERSION', '__VERSION__' );
+define( 'HM_USER_ACTIVATION_FILE', __FILE__ );
 define( 'HM_USER_ACTIVATION_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HM_USER_ACTIVATION_URL', plugin_dir_url( __FILE__ ) );
 
@@ -27,6 +29,7 @@ if ( ! is_multisite() ) {
 	return;
 }
 
+require_once HM_USER_ACTIVATION_DIR . 'includes/sites.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/security.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/registration.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/activation.php';
@@ -38,6 +41,7 @@ require_once HM_USER_ACTIVATION_DIR . 'includes/admin-settings.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/page-setup.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/block-bindings.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/upgrade.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/signups-screen.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/class-activation.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/class-emails.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/class-block-bindings.php';
@@ -47,13 +51,19 @@ require_once HM_USER_ACTIVATION_DIR . 'includes/class-admin-settings.php';
 register_activation_hook( __FILE__, __NAMESPACE__ . '\\on_plugin_activation' );
 
 /**
- * Plugin activation: create the draft registration, activation and password reset pages,
- * and upgrade any data an older version left behind.
+ * Plugin activation.
+ *
+ * Network activation changes nothing on any site. Pages are created when a
+ * site is turned on. Activating on a single site, as 1.x did, upgrades any
+ * data an older version left behind on that site.
+ *
+ * @param bool $network_wide Whether the plugin is being network-activated.
  */
-function on_plugin_activation(): void {
-	PageSetup\create_registration_page();
-	PageSetup\create_activation_page();
-	PageSetup\create_password_reset_page();
+function on_plugin_activation( bool $network_wide = false ): void {
+	if ( $network_wide || ! Sites\is_enabled() ) {
+		return;
+	}
+
 	Upgrade\upgrade();
 }
 
@@ -68,6 +78,7 @@ function multisite_required_notice(): void {
 }
 
 // Bootstrap.
+Sites\bootstrap();
 Security\bootstrap();
 Registration\bootstrap();
 Activation\bootstrap();
@@ -78,12 +89,20 @@ PasswordReset\bootstrap();
 Admin\bootstrap();
 BlockBindings\bootstrap();
 Upgrade\bootstrap();
+SignupsScreen\bootstrap();
 
 // Register blocks and editor assets.
 add_action( 'init', __NAMESPACE__ . '\\register_blocks' );
 add_action( 'init', __NAMESPACE__ . '\\register_password_strength_script' );
 
+/**
+ * Register the blocks on sites that use the plugin.
+ */
 function register_blocks(): void {
+	if ( ! Sites\is_enabled() ) {
+		return;
+	}
+
 	if ( ! file_exists( HM_USER_ACTIVATION_DIR . 'build/blocks' ) ) {
 		add_action( 'admin_notices', __NAMESPACE__ . '\\build_missing_notice' );
 		add_action( 'network_admin_notices', __NAMESPACE__ . '\\build_missing_notice' );
@@ -104,7 +123,7 @@ function register_password_strength_script(): void {
 	$asset_file = HM_USER_ACTIVATION_DIR . 'build/password-strength/index.asset.php';
 
 	// A source checkout has no build yet, so there is nothing to register.
-	if ( ! file_exists( $asset_file ) ) {
+	if ( ! file_exists( $asset_file ) || ! Sites\is_enabled() ) {
 		return;
 	}
 
@@ -139,7 +158,7 @@ function enqueue_editor_assets(): void {
 	$asset_file = HM_USER_ACTIVATION_DIR . 'build/variations/index.asset.php';
 
 	// A source checkout has no build yet, so there is nothing to enqueue.
-	if ( ! file_exists( $asset_file ) ) {
+	if ( ! file_exists( $asset_file ) || ! Sites\is_enabled() ) {
 		return;
 	}
 

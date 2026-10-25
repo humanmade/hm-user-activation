@@ -15,6 +15,8 @@
 
 namespace HM\UserActivation\Registration;
 
+use HM\UserActivation\Sites;
+
 function bootstrap(): void {
 	// Redirect wp-signup.php requests to our registration page.
 	add_action( 'before_signup_header', __NAMESPACE__ . '\\maybe_redirect_wp_signup' );
@@ -71,7 +73,7 @@ function maybe_redirect_wp_signup(): void {
 function maybe_process(): void {
 	$page_id = (int) get_option( 'hm_activation_registration_page_id' );
 
-	if ( ! $page_id || ! is_page( $page_id ) ) {
+	if ( ! $page_id || ! is_page( $page_id ) || ! Sites\is_enabled() ) {
 		return;
 	}
 
@@ -132,7 +134,8 @@ function process( string $user_name, string $user_email ): void {
 		return;
 	}
 
-	if ( ! is_registration_enabled() ) {
+	// Without a published activation page a signup could never be activated.
+	if ( ! is_registration_enabled() || ! Sites\is_enabled() || ! Sites\activation_page_url() ) {
 		result( [
 			'success'       => false,
 			'error_code'    => 'registration_closed',
@@ -173,7 +176,9 @@ function process( string $user_name, string $user_email ): void {
 	 * Filter the meta stored against the signup.
 	 *
 	 * Starts with add_to_blog and new_role so core's add_new_user_to_blog()
-	 * makes the user a member of this site on activation. Core's
+	 * makes the user a member of this site on activation, and the
+	 * hm_user_activation marker so the plugin can tell its own signups from
+	 * core and admin ones. Core's
 	 * add_signup_meta filter is applied first, then a plugin-specific one.
 	 *
 	 * @param array  $meta       Signup meta.
@@ -181,8 +186,9 @@ function process( string $user_name, string $user_email ): void {
 	 * @param string $user_email Sanitised email address.
 	 */
 	$meta = apply_filters( 'add_signup_meta', [
-		'add_to_blog' => get_current_blog_id(),
-		'new_role'    => get_option( 'default_role' ),
+		'add_to_blog'       => get_current_blog_id(),
+		'new_role'          => get_option( 'default_role' ),
+		Sites\SIGNUP_MARKER => true,
 	] );
 	$meta = apply_filters( 'hm_user_activation_signup_meta', $meta, $user_name, $user_email );
 
@@ -413,12 +419,12 @@ function filter_block_visibility( string $block_content, array $parsed_block ): 
 
 /**
  * Permalink of the configured registration page, or an empty string if it is
- * not set or not published.
+ * not set or not published, or registration is off for this site.
  */
 function page_url(): string {
 	$page_id = (int) get_option( 'hm_activation_registration_page_id' );
 
-	if ( ! $page_id || get_post_status( $page_id ) !== 'publish' ) {
+	if ( ! $page_id || get_post_status( $page_id ) !== 'publish' || ! Sites\is_enabled() ) {
 		return '';
 	}
 

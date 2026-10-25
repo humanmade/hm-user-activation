@@ -21,13 +21,14 @@ namespace HM\UserActivation\BlockBindings;
 use HM\UserActivation\Activation;
 use HM\UserActivation\PasswordReset;
 use HM\UserActivation\Registration;
+use HM\UserActivation\Sites;
 
 function bootstrap(): void {
 	add_action( 'init', __NAMESPACE__ . '\\register_sources' );
 }
 
 function register_sources(): void {
-	if ( ! function_exists( 'register_block_bindings_source' ) ) {
+	if ( ! function_exists( 'register_block_bindings_source' ) || ! Sites\is_enabled() ) {
 		return;
 	}
 

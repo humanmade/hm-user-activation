@@ -8,6 +8,7 @@
  */
 
 use HM\UserActivation\PageSetup;
+use HM\UserActivation\Sites;
 
 if ( ! defined( 'WP_CLI' ) ) {
 	exit;
@@ -46,9 +47,9 @@ update_option( 'blogname', 'HMUA Test Site' );
 // A new network does not allow registration; the registration specs need it.
 update_site_option( 'registration', 'user' );
 
-PageSetup\create_registration_page();
-PageSetup\create_activation_page();
-PageSetup\create_password_reset_page();
+// Turning registration on creates the draft pages.
+update_option( Sites\OPTION, 1 );
+PageSetup\create_pages();
 
 $login_page_id = (int) get_option( 'hm_activation_login_page_id' );
 
@@ -76,6 +77,40 @@ foreach ( $page_ids as $page_id ) {
 		'ID'          => $page_id,
 		'post_status' => 'publish',
 	] );
+}
+
+// A second site that uses the plugin, and one that does not, for the network specs.
+$network = get_network();
+
+foreach ( [ 'hmua-second' => true, 'hmua-off' => false ] as $slug => $enabled ) {
+	$site    = get_site_by_path( $network->domain, "/{$slug}/" );
+	$site_id = $site && $site->path === "/{$slug}/" ? (int) $site->blog_id : wpmu_create_blog( $network->domain, "/{$slug}/", $slug, 1 );
+
+	if ( is_wp_error( $site_id ) ) {
+		WP_CLI::error( $site_id );
+	}
+
+	switch_to_blog( $site_id );
+	$wp_rewrite->init();
+	$wp_rewrite->set_permalink_structure( '/%postname%/' );
+	flush_rewrite_rules( false );
+
+	if ( $enabled ) {
+		update_option( Sites\OPTION, 1 );
+		PageSetup\create_pages();
+
+		foreach ( [ 'hm_activation_registration_page_id', 'hm_activation_page_id', 'hm_activation_password_reset_page_id' ] as $option ) {
+			wp_update_post( [
+				'ID'          => (int) get_option( $option ),
+				'post_status' => 'publish',
+			] );
+		}
+	} else {
+		delete_option( Sites\OPTION );
+	}
+
+	restore_current_blog();
+	$wp_rewrite->init();
 }
 
 WP_CLI::success( 'Test site ready.' );

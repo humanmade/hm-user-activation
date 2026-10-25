@@ -12,6 +12,7 @@ namespace HM\UserActivation\Resend;
 
 use HM\UserActivation\Activation;
 use HM\UserActivation\Emails;
+use HM\UserActivation\Sites;
 
 const QUERY_ARG = 'hm_activation_resent';
 const META_KEY  = 'hm_activation_resends';
@@ -27,7 +28,7 @@ function bootstrap(): void {
  * so timing doesn't show whether a signup exists.
  */
 function maybe_process(): void {
-	if ( empty( $_POST['_hm_resend_nonce'] ) ) {
+	if ( empty( $_POST['_hm_resend_nonce'] ) || ! Sites\activation_page_url() ) {
 		return;
 	}
 
@@ -142,8 +143,14 @@ function resend( string $email, bool $defer = false ): bool {
 		return false;
 	}
 
-	$meta = maybe_unserialize( $signup->meta );
-	$meta = is_array( $meta ) ? $meta : [];
+	$meta = Sites\signup_meta( $signup );
+
+	// The email links to the activation page of the signup's own site, so
+	// there is nothing to send when that site has none.
+	if ( ! Sites\activation_page_url( Sites\signup_site_id( $meta ) ) ) {
+		return false;
+	}
+
 	$info = is_array( $meta[ META_KEY ] ?? null ) ? $meta[ META_KEY ] : [];
 	$sent = (int) ( $info['count'] ?? 0 );
 	$last = (int) ( $info['last'] ?? 0 );
@@ -215,8 +222,8 @@ function resend( string $email, bool $defer = false ): bool {
 		return false;
 	}
 
-	$send = static function () use ( $signup, $key ): void {
-		Emails\send_activation_email( $signup->user_email, $key, $signup->user_login );
+	$send = static function () use ( $signup, $key, $meta ): void {
+		Emails\send_activation_email( $signup->user_email, $key, $signup->user_login, $meta );
 	};
 
 	if ( ! $defer ) {
