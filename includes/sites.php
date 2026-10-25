@@ -86,8 +86,8 @@ function activation_page_url( int $site_id = 0 ): string {
 /**
  * Run a callback on another site and return its result.
  *
- * Rewrite rules are reloaded on both sides of the switch, so permalinks
- * follow the target site's permalink structure.
+ * Rewrite settings are reloaded for the target site, so permalinks follow
+ * its permalink structure, and restored afterwards.
  *
  * @param int      $site_id  Site ID, or 0 for the current site.
  * @param callable $callback Callback to run.
@@ -104,6 +104,10 @@ function on_site( int $site_id, callable $callback ) {
 		return null;
 	}
 
+	// init() also drops endpoints and extra rules, so the current site's
+	// copy is put back afterwards rather than rebuilt.
+	$rewrite = clone $wp_rewrite;
+
 	switch_to_blog( $site_id );
 	$wp_rewrite->init();
 
@@ -111,7 +115,10 @@ function on_site( int $site_id, callable $callback ) {
 		return $callback();
 	} finally {
 		restore_current_blog();
-		$wp_rewrite->init();
+
+		foreach ( get_object_vars( $rewrite ) as $property => $value ) {
+			$wp_rewrite->$property = $value;
+		}
 	}
 }
 
