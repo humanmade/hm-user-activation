@@ -145,6 +145,27 @@ class Test_Password_Strength extends WP_UnitTestCase {
 		$this->assertSame( [ 'empty_password' ], $errors->get_error_codes() );
 	}
 
+	public function test_weak_password_is_rejected_for_an_existing_user(): void {
+		$user   = self::factory()->user->create_and_get();
+		$errors = $this->validate( $user, 'password' );
+
+		$this->assertSame( [ 'weak_password' ], $errors->get_error_codes() );
+	}
+
+	public function test_strength_check_is_skipped_when_a_policy_plugin_rejected_the_password(): void {
+		$callback = static function ( WP_Error $errors ) {
+			$errors->add( 'pass', 'Please use a stronger password.' );
+		};
+		add_action( 'validate_password_reset', $callback );
+
+		$user   = self::factory()->user->create_and_get();
+		$errors = $this->validate( $user, 'password' );
+
+		remove_action( 'validate_password_reset', $callback );
+
+		$this->assertSame( [ 'pass' ], $errors->get_error_codes() );
+	}
+
 	public function test_weak_password_is_rejected_for_a_signup(): void {
 		$errors = $this->validate( $this->signup_user(), 'password' );
 
