@@ -1,0 +1,133 @@
+<?php
+/**
+ * Server-side render for hm-user-activation/password-reset.
+ *
+ * Shows one of two forms depending on whether a valid reset key has been
+ * stashed for this browser:
+ *
+ *  - No key: "Request reset link" form — user enters username or email.
+ *  - Key present: "Set new password" form — user enters and confirms a new
+ *    password. The key comes from the HTTP-only cookie set when the reset link
+ *    was followed, never from the URL, and is echoed back in a hidden field
+ *    only so it can be cross-checked against that cookie on submission.
+ *
+ * The block hides itself on success; the group variations on the page handle
+ * displaying the success messages.
+ */
+
+use HM\UserActivation\PasswordReset;
+
+// Hide the form once an action has succeeded — group variations take over.
+if ( PasswordReset\is_success() ) {
+	return;
+}
+
+$pending = PasswordReset\pending_credentials();
+
+$key           = $pending['key'] ?? '';
+$is_reset_mode = (bool) $pending;
+
+$wrapper_attributes = get_block_wrapper_attributes( [ 'class' => 'hm-password-reset' ] );
+
+$pending_user = $is_reset_mode ? PasswordReset\pending_user() : null;
+
+// The extra words the strength meter should treat as weak, and the script that runs it.
+$strength_meter = $is_reset_mode && PasswordReset\strength_meter_enabled();
+$strength_attr  = '';
+if ( $strength_meter ) {
+	$strength_words = $pending_user ? [ $pending_user->user_login, $pending_user->user_email ] : [];
+	$strength_attr  = ' data-hm-password-strength="' . esc_attr( wp_json_encode( $strength_words ) ) . '"';
+	wp_enqueue_script( 'hm-user-activation-password-strength' );
+}
+?>
+<div <?php echo $wrapper_attributes; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- get_block_wrapper_attributes() returns escaped attributes ?>>
+<?php if ( $is_reset_mode ) : ?>
+
+	<form method="post" action="" class="hm-password-reset__form"<?php echo $strength_attr; // phpcs:ignore HM.Security.EscapeOutput.OutputNotEscaped -- built from esc_attr() ?>>
+		<?php wp_nonce_field( 'hm_reset', '_hm_reset_nonce' ); ?>
+		<input type="hidden" name="rp_key" value="<?php echo esc_attr( $key ); ?>">
+
+		<p class="hm-password-reset__field">
+			<label class="hm-password-reset__label" for="hm-pass1">
+				<?php esc_html_e( 'New password', 'hm-user-activation' ); ?>
+			</label>
+			<input
+				type="password"
+				id="hm-pass1"
+				name="pass1"
+				class="hm-password-reset__input input"
+				required
+				autocomplete="new-password"
+				<?php echo $strength_meter ? ' aria-describedby="hm-pass1-strength"' : ''; ?>
+			>
+			<?php if ( $strength_meter ) : ?>
+				<button type="button" class="button hm-password-toggle" aria-controls="hm-pass1 hm-pass2" data-show="<?php esc_attr_e( 'Show password', 'hm-user-activation' ); ?>" data-hide="<?php esc_attr_e( 'Hide password', 'hm-user-activation' ); ?>" hidden><?php esc_html_e( 'Show password', 'hm-user-activation' ); ?></button>
+			<?php endif; ?>
+		</p>
+
+		<?php if ( $strength_meter ) : ?>
+			<p id="hm-pass1-strength" class="pass-strength-result hm-password-strength" aria-live="polite" hidden></p>
+		<?php endif; ?>
+
+		<p class="hm-password-reset__field">
+			<label class="hm-password-reset__label" for="hm-pass2">
+				<?php esc_html_e( 'Confirm new password', 'hm-user-activation' ); ?>
+			</label>
+			<input
+				type="password"
+				id="hm-pass2"
+				name="pass2"
+				class="hm-password-reset__input input"
+				required
+				autocomplete="new-password"
+			>
+		</p>
+
+		<?php
+		// Core's hook for extra reset fields, such as password policy notices.
+		if ( $pending_user ) {
+			do_action( 'resetpass_form', $pending_user );
+		}
+		?>
+
+		<div class="hm-password-reset__submit wp-block-button">
+			<button type="submit" class="hm-password-reset__button wp-block-button__button button <?php echo esc_attr( wp_theme_get_element_class_name( 'button' ) ); ?>">
+				<?php esc_html_e( 'Set password', 'hm-user-activation' ); ?>
+			</button>
+		</div>
+	</form>
+
+<?php else : ?>
+
+	<form method="post" action="" class="hm-password-reset__form">
+		<?php wp_nonce_field( 'hm_reset_request', '_hm_reset_request_nonce' ); ?>
+
+		<p class="hm-password-reset__field">
+			<label class="hm-password-reset__label" for="hm-user-login">
+				<?php esc_html_e( 'Username or email address', 'hm-user-activation' ); ?>
+			</label>
+			<input
+				type="text"
+				id="hm-user-login"
+				name="user_login"
+				class="hm-password-reset__input input"
+				required
+				autocomplete="username"
+			>
+		</p>
+
+		<?php
+		// Core's hook for extra request fields, such as a captcha checked on
+		// lostpassword_post.
+		do_action( 'lostpassword_form' );
+		?>
+
+		<div class="hm-password-reset__submit wp-block-button">
+			<button type="submit" class="hm-password-reset__button wp-block-button__button button <?php echo esc_attr( wp_theme_get_element_class_name( 'button' ) ); ?>">
+				<?php esc_html_e( 'Get new password', 'hm-user-activation' ); ?>
+			</button>
+		</div>
+	</form>
+
+<?php endif; ?>
+</div>
