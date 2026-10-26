@@ -33,6 +33,21 @@ function minimum_strength(): int {
 }
 
 /**
+ * The most characters a new password can have.
+ */
+function max_length(): int {
+	/**
+	 * Filters the most characters a new password can have.
+	 *
+	 * Longer passwords are rejected before any password check runs, because
+	 * scoring time grows quickly with length. The value is at least 8.
+	 *
+	 * @param int $length Maximum length in characters. Default 256.
+	 */
+	return max( 8, (int) apply_filters( 'hm_user_activation_password_max_length', 256 ) );
+}
+
+/**
  * Words a password should not contain, taken from the user and the site.
  *
  * Mirrors the list core's password meter builds in the browser.
@@ -76,8 +91,9 @@ function is_weak( string $password, \WP_User $user ): bool {
 	$is_weak = false;
 	$results = null;
 
+	// Only the start is scored. zxcvbn-php takes minutes on a very long string.
 	if ( class_exists( 'ZxcvbnPhp\\Zxcvbn' ) ) {
-		$results = ( new \ZxcvbnPhp\Zxcvbn() )->passwordStrength( $password, user_inputs( $user ) );
+		$results = ( new \ZxcvbnPhp\Zxcvbn() )->passwordStrength( mb_substr( $password, 0, 100 ), user_inputs( $user ) );
 		$is_weak = $results['score'] < minimum_strength();
 	}
 

@@ -125,11 +125,16 @@ The Complete your account and Password Reset forms check a new password the way 
 
 With [zxcvbn-php](https://github.com/bjeavons/zxcvbn-php) installed (`composer require bjeavons/zxcvbn-php`), the plugin also scores the password itself. This covers new signups, which have no user yet for other plugins to look up. The score runs from 0 to 4. Passwords below the minimum are rejected. The minimum is the Altis security setting when Altis is present, else 3, which is the score core's own meter no longer calls weak. The login, email address, name and site details are counted against the password.
 
+Passwords longer than 256 characters are rejected before any check runs, because scoring time grows quickly with length. Only the first 100 characters are scored. Change the limit with `hm_user_activation_password_max_length`.
+
 Without zxcvbn-php the plugin does no scoring of its own. Use `hm_user_activation_password_is_weak` to add a check.
 
 ```php
 // Ask for the strongest score.
 add_filter( 'hm_user_activation_password_minimum_strength', fn() => 4 );
+
+// Allow longer passwords.
+add_filter( 'hm_user_activation_password_max_length', fn() => 512 );
 
 // Or supply your own check.
 add_filter( 'hm_user_activation_password_is_weak', function ( $is_weak, $password, $user, $results ) {
@@ -152,6 +157,7 @@ add_filter( 'hm_user_activation_password_is_weak', function ( $is_weak, $passwor
 - `hm_user_activation_reset_url_fallback` — filter the base URL of set-password links when there is no published password reset page. The default is core's `wp-login.php?action=rp` (`string $url, string $key, string $login`).
 - `hm_user_activation_password_strength_meter` — filter whether the Complete your account and Password Reset forms show core's password strength meter and a show/hide button (`bool $enabled`, default `true`). The server's password checks run either way.
 - `hm_user_activation_password_minimum_strength` — filter the lowest zxcvbn score a new password can have (`int $strength`). The default is Altis's minimum strength when present, else 3. The value is kept between 0 and 4. Only used when zxcvbn-php is installed.
+- `hm_user_activation_password_max_length` — filter the most characters a new password can have (`int $length`). The default is 256 and the lowest value used is 8. A longer password is rejected before `check_passwords` runs.
 - `hm_user_activation_password_is_weak` — filter whether a new password is rejected as too weak (`bool $is_weak, string $password, WP_User $user, array|null $results`). `$user` is an unsaved user with ID `0` for a new signup. `$results` is the zxcvbn result, or `null` when zxcvbn-php is not installed.
 - `hm_user_activation_filter_lostpassword_url` — when a published password reset page is set, the plugin points every `wp_lostpassword_url()` link on the site at it. Return `false` to turn that off (`bool $filter`, default `true`).
 - `hm_user_activation_complete_account_fields` — action inside the Complete your account form, before the submit button (`object $signup, array $meta, array $fields`).

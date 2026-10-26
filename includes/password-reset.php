@@ -298,11 +298,12 @@ function process_password_change( string $key, string $login, string $pass1, str
 /**
  * Check a new password the way wp-login.php does when a password is reset.
  *
- * Trims both values, fires check_passwords, checks they are not empty and
- * match, scores the password, then fires validate_password_reset. A password
- * that a check_passwords hook cleared is rejected as too weak. Both values are
- * passed by reference and come back as strings, as they will be stored. They
- * must be the raw, slashed values from $_POST, as wp-login.php uses.
+ * Trims both values and rejects them if too long, fires check_passwords,
+ * checks they are not empty and match, scores the password, then fires
+ * validate_password_reset. A password that a check_passwords hook cleared is
+ * rejected as too weak. Both values are passed by reference and come back as
+ * strings, as they will be stored. They must be the raw, slashed values from
+ * $_POST, as wp-login.php uses.
  *
  * @param \WP_User $user  The user whose password is being set.
  * @param string   $pass1 The new password.
@@ -311,6 +312,19 @@ function process_password_change( string $key, string $login, string $pass1, str
 function validate_new_password( \WP_User $user, string &$pass1, string &$pass2 ): \WP_Error {
 	$pass1 = trim( $pass1 );
 	$pass2 = trim( $pass2 );
+
+	// Checked first so no hook has to handle a huge string.
+	$max_length = Passwords\max_length();
+	if ( mb_strlen( $pass1 ) > $max_length || mb_strlen( $pass2 ) > $max_length ) {
+		return new \WP_Error(
+			'password_too_long',
+			sprintf(
+				/* translators: %d: the longest password allowed, in characters. */
+				__( 'Please use a password of %d characters or fewer.', 'hm-user-activation' ),
+				$max_length
+			)
+		);
+	}
 
 	$had_password = $pass1 !== '';
 

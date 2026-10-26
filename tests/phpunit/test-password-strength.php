@@ -36,6 +36,7 @@ class Test_Password_Strength extends WP_UnitTestCase {
 		remove_all_actions( 'check_passwords' );
 		remove_all_filters( 'hm_user_activation_password_minimum_strength' );
 		remove_all_filters( 'hm_user_activation_password_is_weak' );
+		remove_all_filters( 'hm_user_activation_password_max_length' );
 
 		parent::tear_down();
 	}
@@ -51,6 +52,47 @@ class Test_Password_Strength extends WP_UnitTestCase {
 
 		$this->assertSame( [ 'weak_password' ], $errors->get_error_codes() );
 		$this->assertIsString( $pass1 );
+	}
+
+	public function test_password_over_the_length_limit_is_rejected_before_any_check(): void {
+		$called = 0;
+		add_action( 'check_passwords', static function () use ( &$called ) {
+			++$called;
+		} );
+
+		$errors = $this->validate( $this->signup_user(), str_repeat( 'a', 257 ) );
+
+		$this->assertSame( [ 'password_too_long' ], $errors->get_error_codes() );
+		$this->assertSame( 0, $called );
+	}
+
+	public function test_password_at_the_length_limit_is_checked(): void {
+		$called = 0;
+		add_action( 'check_passwords', static function () use ( &$called ) {
+			++$called;
+		} );
+
+		$this->validate( $this->signup_user(), str_repeat( 'a', 256 ) );
+
+		$this->assertSame( 1, $called );
+	}
+
+	public function test_max_length_filter_changes_the_limit(): void {
+		add_filter( 'hm_user_activation_password_max_length', static fn() => 40 );
+
+		$this->assertSame( [ 'password_too_long' ], $this->validate( $this->signup_user(), str_repeat( 'b', 41 ) )->get_error_codes() );
+		$this->assertFalse( $this->validate( $this->signup_user(), self::STRONG )->has_errors() );
+
+		remove_all_filters( 'hm_user_activation_password_max_length' );
+		add_filter( 'hm_user_activation_password_max_length', static fn() => 1 );
+		$this->assertSame( 8, HM\UserActivation\Passwords\max_length() );
+	}
+
+	public function test_long_strong_password_is_accepted(): void {
+		$password = implode( ' ', array_fill( 0, 10, 'correct horse battery staple 91' ) );
+		$password = substr( $password, 0, 200 );
+
+		$this->assertFalse( $this->validate( $this->signup_user(), $password )->has_errors() );
 	}
 
 	public function test_empty_password_is_not_reported_as_weak(): void {
