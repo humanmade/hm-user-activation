@@ -36,6 +36,7 @@ require_once HM_USER_ACTIVATION_DIR . 'includes/activation.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/complete-account.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/emails.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/resend.php';
+require_once HM_USER_ACTIVATION_DIR . 'includes/passwords.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/password-reset.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/admin-settings.php';
 require_once HM_USER_ACTIVATION_DIR . 'includes/page-setup.php';
