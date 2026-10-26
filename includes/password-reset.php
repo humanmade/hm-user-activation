@@ -331,7 +331,7 @@ function validate_new_password( \WP_User $user, string &$pass1, string &$pass2 )
 	}
 
 	foreach ( $plain as $value ) {
-		if ( $value !== '' && wp_check_invalid_utf8( $value ) === '' ) {
+		if ( $value !== '' && ! mb_check_encoding( $value, 'UTF-8' ) ) {
 			return new \WP_Error( 'invalid_password', __( "Your password contains characters that can't be used. Please choose another one.", 'hm-user-activation' ) );
 		}
 	}

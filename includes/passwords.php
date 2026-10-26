@@ -39,8 +39,9 @@ function max_length(): int {
 	/**
 	 * Filters the most characters a new password can have.
 	 *
-	 * This is the longest password any hook is given. Longer ones are rejected
-	 * before check_passwords runs. Raising it makes the strength checks of other
+	 * The length is counted on the plain password. Longer ones are rejected
+	 * before check_passwords runs. Hooks get the slashed password, which can be
+	 * up to twice as long. Raising the limit makes the strength checks of other
 	 * plugins slower, as they often score the whole password. The value is at
 	 * least 8.
 	 *
