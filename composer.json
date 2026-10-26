@@ -12,7 +12,11 @@
     "require": {
         "composer/installers": "^1 || ^2"
     },
+    "suggest": {
+        "bjeavons/zxcvbn-php": "Lets the plugin reject weak passwords on the server. Without it, use the hm_user_activation_password_is_weak filter."
+    },
     "require-dev": {
+        "bjeavons/zxcvbn-php": "^1.4",
         "humanmade/coding-standards": "^2.3",
         "phpunit/phpunit": "^9.6",
         "yoast/phpunit-polyfills": "^2.0"
