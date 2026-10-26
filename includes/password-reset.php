@@ -12,6 +12,7 @@
 namespace HM\UserActivation\PasswordReset;
 
 use HM\UserActivation\Emails;
+use HM\UserActivation\Passwords;
 use HM\UserActivation\Security;
 use HM\UserActivation\Sites;
 
@@ -298,9 +299,10 @@ function process_password_change( string $key, string $login, string $pass1, str
  * Check a new password the way wp-login.php does when a password is reset.
  *
  * Trims both values, fires check_passwords, checks they are not empty and
- * match, then fires validate_password_reset. Both values are passed by
- * reference and come back as they will be stored. They must be the raw,
- * slashed values from $_POST, as wp-login.php uses.
+ * match, scores the password, then fires validate_password_reset. A password
+ * that a check_passwords hook cleared is rejected as too weak. Both values are
+ * passed by reference and come back as strings, as they will be stored. They
+ * must be the raw, slashed values from $_POST, as wp-login.php uses.
  *
  * @param \WP_User $user  The user whose password is being set.
  * @param string   $pass1 The new password.
@@ -310,15 +312,25 @@ function validate_new_password( \WP_User $user, string &$pass1, string &$pass2 )
 	$pass1 = trim( $pass1 );
 	$pass2 = trim( $pass2 );
 
+	$had_password = $pass1 !== '';
+
 	/**
 	 * Fires before the new password is checked, as when a password is changed
-	 * on the profile screen. Both values are passed by reference.
+	 * on the profile screen. Both values are passed by reference. A hook that
+	 * rejects the password does so by setting them to null.
 	 *
 	 * @param string $user_login The user's login.
 	 * @param string $pass1      The new password.
 	 * @param string $pass2      The confirmed password.
 	 */
 	do_action_ref_array( 'check_passwords', [ $user->user_login, &$pass1, &$pass2 ] );
+
+	// A hook cleared a password that was entered, so it rejected it.
+	$rejected = $had_password && ( in_array( $pass1, [ null, '' ], true ) || in_array( $pass2, [ null, '' ], true ) );
+
+	// Nothing downstream should receive null.
+	$pass1 = (string) $pass1;
+	$pass2 = (string) $pass2;
 
 	// validate_password_reset is not given the password, so policy plugins read
 	// it from $_POST. Give them the exact value that will be stored, as
@@ -328,10 +340,18 @@ function validate_new_password( \WP_User $user, string &$pass1, string &$pass2 )
 
 	$errors = new \WP_Error();
 
-	if ( $pass1 === '' ) {
+	if ( $rejected ) {
+		$errors->add( 'weak_password', weak_password_message() );
+	} elseif ( $pass1 === '' ) {
 		$errors->add( 'empty_password', __( 'Please enter a new password. It cannot be only spaces.', 'hm-user-activation' ) );
 	} elseif ( $pass2 !== $pass1 ) {
 		$errors->add( 'password_mismatch', __( 'Passwords do not match. Please try again.', 'hm-user-activation' ) );
+	}
+
+	// Plugins that look the user up by login find nobody for a new signup, so
+	// the password is scored here as well.
+	if ( ! $errors->has_errors() && $pass1 !== '' && Passwords\is_weak( $pass1, $user ) ) {
+		$errors->add( 'weak_password', weak_password_message() );
 	}
 
 	/**
@@ -344,6 +364,13 @@ function validate_new_password( \WP_User $user, string &$pass1, string &$pass2 )
 	do_action( 'validate_password_reset', $errors, $user );
 
 	return $errors;
+}
+
+/**
+ * The error shown when a new password is rejected as too weak.
+ */
+function weak_password_message(): string {
+	return __( 'Please choose a stronger password. A longer phrase works well. Avoid your name, email address and common words.', 'hm-user-activation' );
 }
 
 // -------------------------------------------------------------------------
