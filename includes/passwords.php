@@ -12,8 +12,8 @@ namespace HM\UserActivation\Passwords;
  * The lowest zxcvbn score (0 to 4) a new password can have.
  */
 function minimum_strength(): int {
-	// 3 is the score core's own meter treats as no longer weak.
-	$default = 3;
+	// 2 matches Altis's default.
+	$default = 2;
 
 	if ( function_exists( 'Altis\\Security\\Passwords\\get_minimum_strength' ) ) {
 		$default = (int) \Altis\Security\Passwords\get_minimum_strength();
@@ -22,7 +22,7 @@ function minimum_strength(): int {
 	/**
 	 * Filters the lowest zxcvbn score a new password can have.
 	 *
-	 * The default is Altis's minimum strength setting when it is present, else 3.
+	 * The default is Altis's minimum strength setting when it is present, else 2.
 	 * The value is kept between 0 and 4.
 	 *
 	 * @param int $strength Minimum score, from 0 (very weak) to 4 (very strong).
