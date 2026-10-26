@@ -60,7 +60,7 @@ class Test_Password_Strength extends WP_UnitTestCase {
 			++$called;
 		} );
 
-		$errors = $this->validate( $this->signup_user(), str_repeat( 'a', 257 ) );
+		$errors = $this->validate( $this->signup_user(), str_repeat( 'a', 73 ) );
 
 		$this->assertSame( [ 'password_too_long' ], $errors->get_error_codes() );
 		$this->assertSame( 0, $called );
@@ -72,7 +72,7 @@ class Test_Password_Strength extends WP_UnitTestCase {
 			++$called;
 		} );
 
-		$this->validate( $this->signup_user(), str_repeat( 'a', 256 ) );
+		$this->validate( $this->signup_user(), str_repeat( 'a', 72 ) );
 
 		$this->assertSame( 1, $called );
 	}
@@ -88,11 +88,54 @@ class Test_Password_Strength extends WP_UnitTestCase {
 		$this->assertSame( 8, HM\UserActivation\Passwords\max_length() );
 	}
 
-	public function test_long_strong_password_is_accepted(): void {
-		$password = implode( ' ', array_fill( 0, 10, 'correct horse battery staple 91' ) );
-		$password = substr( $password, 0, 200 );
+	public function test_strong_password_at_the_length_limit_is_accepted(): void {
+		$password = substr( 'correct horse battery staple 91 purple giraffe window lantern orbit 7731', 0, 72 );
 
 		$this->assertFalse( $this->validate( $this->signup_user(), $password )->has_errors() );
+	}
+
+	public function test_length_limit_counts_the_unslashed_password(): void {
+		$password = str_repeat( "'", 72 );
+		$pass1    = wp_slash( $password );
+		$pass2    = $pass1;
+
+		$errors = validate_new_password( $this->signup_user(), $pass1, $pass2 );
+
+		$this->assertNotContains( 'password_too_long', $errors->get_error_codes() );
+	}
+
+	public function test_slashes_do_not_raise_the_score(): void {
+		$pass1 = wp_slash( "o'reilly1" );
+		$pass2 = $pass1;
+
+		$errors = validate_new_password( $this->signup_user(), $pass1, $pass2 );
+
+		$this->assertSame( [ 'weak_password' ], $errors->get_error_codes() );
+	}
+
+	public function test_invalid_utf8_is_rejected_before_any_check(): void {
+		$called = 0;
+		add_action( 'check_passwords', static function () use ( &$called ) {
+			++$called;
+		} );
+
+		$errors = $this->validate( $this->signup_user(), "\xff\xfe abc" );
+
+		$this->assertSame( [ 'invalid_password' ], $errors->get_error_codes() );
+		$this->assertSame( 0, $called );
+	}
+
+	public function test_empty_confirmation_is_a_mismatch(): void {
+		$user = $this->signup_user();
+
+		foreach ( [ '', '   ' ] as $confirmation ) {
+			$pass1 = self::STRONG;
+			$pass2 = $confirmation;
+
+			$errors = validate_new_password( $user, $pass1, $pass2 );
+
+			$this->assertSame( [ 'password_mismatch' ], $errors->get_error_codes() );
+		}
 	}
 
 	public function test_empty_password_is_not_reported_as_weak(): void {

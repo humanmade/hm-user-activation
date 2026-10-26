@@ -298,12 +298,13 @@ function process_password_change( string $key, string $login, string $pass1, str
 /**
  * Check a new password the way wp-login.php does when a password is reset.
  *
- * Trims both values and rejects them if too long, fires check_passwords,
- * checks they are not empty and match, scores the password, then fires
- * validate_password_reset. A password that a check_passwords hook cleared is
- * rejected as too weak. Both values are passed by reference and come back as
- * strings, as they will be stored. They must be the raw, slashed values from
- * $_POST, as wp-login.php uses.
+ * Trims both values and rejects them if too long or not valid UTF-8, fires
+ * check_passwords, checks they are not empty and match, scores the password,
+ * then fires validate_password_reset. A password that a check_passwords hook
+ * cleared is rejected as too weak. Both values are passed by reference and
+ * come back as strings, as they will be stored. They must be the raw, slashed
+ * values from $_POST, as wp-login.php uses. Length and strength are judged on
+ * the unslashed password.
  *
  * @param \WP_User $user  The user whose password is being set.
  * @param string   $pass1 The new password.
@@ -313,9 +314,12 @@ function validate_new_password( \WP_User $user, string &$pass1, string &$pass2 )
 	$pass1 = trim( $pass1 );
 	$pass2 = trim( $pass2 );
 
-	// Checked first so no hook has to handle a huge string.
+	// The values are slashed, so length and strength are judged on the plain
+	// text. Checked first so no hook has to handle a huge or malformed string.
+	$plain = [ wp_unslash( $pass1 ), wp_unslash( $pass2 ) ];
+
 	$max_length = Passwords\max_length();
-	if ( mb_strlen( $pass1 ) > $max_length || mb_strlen( $pass2 ) > $max_length ) {
+	if ( mb_strlen( $plain[0] ) > $max_length || mb_strlen( $plain[1] ) > $max_length ) {
 		return new \WP_Error(
 			'password_too_long',
 			sprintf(
@@ -326,7 +330,14 @@ function validate_new_password( \WP_User $user, string &$pass1, string &$pass2 )
 		);
 	}
 
-	$had_password = $pass1 !== '';
+	foreach ( $plain as $value ) {
+		if ( $value !== '' && wp_check_invalid_utf8( $value ) === '' ) {
+			return new \WP_Error( 'invalid_password', __( "Your password contains characters that can't be used. Please choose another one.", 'hm-user-activation' ) );
+		}
+	}
+
+	$had_pass1 = $pass1 !== '';
+	$had_pass2 = $pass2 !== '';
 
 	/**
 	 * Fires before the new password is checked, as when a password is changed
@@ -340,7 +351,7 @@ function validate_new_password( \WP_User $user, string &$pass1, string &$pass2 )
 	do_action_ref_array( 'check_passwords', [ $user->user_login, &$pass1, &$pass2 ] );
 
 	// A hook cleared a password that was entered, so it rejected it.
-	$rejected = $had_password && ( in_array( $pass1, [ null, '' ], true ) || in_array( $pass2, [ null, '' ], true ) );
+	$rejected = ( $had_pass1 && in_array( $pass1, [ null, '' ], true ) ) || ( $had_pass2 && in_array( $pass2, [ null, '' ], true ) );
 
 	// Nothing downstream should receive null.
 	$pass1 = (string) $pass1;
@@ -364,7 +375,7 @@ function validate_new_password( \WP_User $user, string &$pass1, string &$pass2 )
 
 	// Plugins that look the user up by login find nobody for a new signup, so
 	// the password is scored here as well.
-	if ( ! $errors->has_errors() && $pass1 !== '' && Passwords\is_weak( $pass1, $user ) ) {
+	if ( ! $errors->has_errors() && $pass1 !== '' && Passwords\is_weak( wp_unslash( $pass1 ), $user ) ) {
 		$errors->add( 'weak_password', weak_password_message() );
 	}
 

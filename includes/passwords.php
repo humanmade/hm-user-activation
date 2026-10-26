@@ -39,12 +39,14 @@ function max_length(): int {
 	/**
 	 * Filters the most characters a new password can have.
 	 *
-	 * Longer passwords are rejected before any password check runs, because
-	 * scoring time grows quickly with length. The value is at least 8.
+	 * This is the longest password any hook is given. Longer ones are rejected
+	 * before check_passwords runs. Raising it makes the strength checks of other
+	 * plugins slower, as they often score the whole password. The value is at
+	 * least 8.
 	 *
-	 * @param int $length Maximum length in characters. Default 256.
+	 * @param int $length Maximum length in characters. Default 72.
 	 */
-	return max( 8, (int) apply_filters( 'hm_user_activation_password_max_length', 256 ) );
+	return max( 8, (int) apply_filters( 'hm_user_activation_password_max_length', 72 ) );
 }
 
 /**
